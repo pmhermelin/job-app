@@ -137,8 +137,16 @@ namespace JobApp
             Console.WriteLine(loggedInUser);
 
             // Role-specific menus (candidate/employer/admin) are implemented in later stories
-            // (KAN-8, KAN-13, KAN-17 and teammates' stories). For now, a minimal logged-in loop
-            // just confirms the session and returns to the main menu on logout (REQ-013 / KAN-17).
+            // (KAN-8, KAN-13 and teammates' stories). For now, a minimal logged-in loop
+            // just confirms the session; logging out is handled by HandleLogout below (REQ-013 / KAN-17).
+            RunLoggedInSession(loggedInUser);
+        }
+
+        // Logged-in loop: only two actions available until role-specific menus exist.
+        // loggedInUser is a local variable (not a field), so once this method returns
+        // there is no way to reach a protected action without logging in again (T-13).
+        static void RunLoggedInSession(User loggedInUser)
+        {
             bool loggedIn = true;
             while (loggedIn)
             {
@@ -157,13 +165,25 @@ namespace JobApp
                         break;
                     case "2":
                         loggedIn = false;
-                        Console.WriteLine("Logged out.");
+                        HandleLogout(loggedInUser);
                         break;
                     default:
                         Console.WriteLine("Invalid choice, please try again.");
                         break;
                 }
             }
+        }
+
+        // REQ-013 / KAN-17: end the logged-in session and return to the main menu.
+        // Logic per design doc section 6.15:
+        //   1. End the inner (logged-in) menu loop - handled by the caller via RunLoggedInSession.
+        //   2. Reset the reference to the logged-in user within Program - loggedInUser simply goes
+        //      out of scope when this method and RunLoggedInSession return, so no protected action
+        //      is reachable afterward without logging in again.
+        //   3. Control returns to the main menu loop in Main().
+        static void HandleLogout(User loggedInUser)
+        {
+            Console.WriteLine($"Goodbye, {loggedInUser.GetName()}. You have been logged out.");
         }
     }
 }
