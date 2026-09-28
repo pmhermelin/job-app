@@ -230,5 +230,57 @@ namespace JobApp
             errorMessage = "Invalid email or password.";
             return null;
         }
+
+        // ---------- REQ-009 / KAN-13: updateCandidateProfile ----------
+        // Logic per design doc section 6.11.
+        // errorMessage is returned via out so Program can show a clear message without throwing exceptions.
+        public bool UpdateCandidateProfile(User candidate, string education, string experience,
+                                            string skills, string summary, out string errorMessage)
+        {
+            errorMessage = "";
+
+            // Permission check (design doc 6.11 + section 4.3 permissions table):
+            // a candidate updates only the profile linked to their own account.
+            if (candidate == null || candidate.GetUserType() != "CANDIDATE")
+            {
+                errorMessage = "Only job seekers can update a candidate profile.";
+                return false;
+            }
+
+            if (IsBlank(education))
+            {
+                errorMessage = "Education cannot be empty.";
+                return false;
+            }
+
+            if (IsBlank(experience))
+            {
+                errorMessage = "Experience cannot be empty.";
+                return false;
+            }
+
+            if (IsBlank(skills))
+            {
+                errorMessage = "Skills cannot be empty.";
+                return false;
+            }
+
+            if (IsBlank(summary))
+            {
+                errorMessage = "Professional summary cannot be empty.";
+                return false;
+            }
+
+            CandidateProfile profile = candidate.GetCandidateProfile();
+            if (profile == null)
+            {
+                errorMessage = "No candidate profile found for this account.";
+                return false;
+            }
+
+            // All checks passed - update only after every value is valid (design doc 6.11, step 4).
+            profile.UpdateProfile(education, experience, skills, summary);
+            return true;
+        }
     }
 }

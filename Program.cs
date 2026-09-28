@@ -136,24 +136,31 @@ namespace JobApp
             Console.WriteLine("Login successful!");
             Console.WriteLine(loggedInUser);
 
-            // Role-specific menus (candidate/employer/admin) are implemented in later stories
-            // (KAN-8, KAN-13 and teammates' stories). For now, a minimal logged-in loop
-            // just confirms the session; logging out is handled by HandleLogout below (REQ-013 / KAN-17).
-            RunLoggedInSession(loggedInUser);
+            // Role-specific menus are implemented incrementally: candidates can now update their
+            // profile (REQ-009 / KAN-13); other role menus (KAN-8 and teammates' stories) are still pending.
+            // Logging out is handled by HandleLogout below (REQ-013 / KAN-17).
+            RunLoggedInSession(system, loggedInUser);
         }
 
         // Logged-in loop: only two actions available until role-specific menus exist.
         // loggedInUser is a local variable (not a field), so once this method returns
         // there is no way to reach a protected action without logging in again (T-13).
-        static void RunLoggedInSession(User loggedInUser)
+        static void RunLoggedInSession(JobSystem system, User loggedInUser)
         {
+            bool isCandidate = loggedInUser.GetUserType() == "CANDIDATE";
+
             bool loggedIn = true;
             while (loggedIn)
             {
                 Console.WriteLine();
                 Console.WriteLine($"==== Logged in as {loggedInUser.GetName()} ({loggedInUser.GetUserType()}) ====");
                 Console.WriteLine("1 - View my account info");
-                Console.WriteLine("2 - Logout");
+                if (isCandidate)
+                {
+                    // REQ-009 / KAN-13: only job seekers may update a candidate profile (design doc 4.3).
+                    Console.WriteLine("2 - Update my profile");
+                }
+                Console.WriteLine("3 - Logout");
                 Console.Write("Choice: ");
 
                 string choice = Console.ReadLine();
@@ -164,6 +171,16 @@ namespace JobApp
                         Console.WriteLine(loggedInUser);
                         break;
                     case "2":
+                        if (isCandidate)
+                        {
+                            HandleUpdateCandidateProfile(system, loggedInUser);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid choice, please try again.");
+                        }
+                        break;
+                    case "3":
                         loggedIn = false;
                         HandleLogout(loggedInUser);
                         break;
@@ -172,6 +189,37 @@ namespace JobApp
                         break;
                 }
             }
+        }
+
+        // REQ-009 / KAN-13: capture profile details, call JobSystem.UpdateCandidateProfile, display the result.
+        static void HandleUpdateCandidateProfile(JobSystem system, User loggedInUser)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Update my profile --");
+
+            Console.Write("Education: ");
+            string education = Console.ReadLine();
+
+            Console.Write("Experience: ");
+            string experience = Console.ReadLine();
+
+            Console.Write("Skills: ");
+            string skills = Console.ReadLine();
+
+            Console.Write("Professional summary: ");
+            string summary = Console.ReadLine();
+
+            bool success = system.UpdateCandidateProfile(loggedInUser, education, experience, skills, summary,
+                                                           out string errorMessage);
+
+            if (!success)
+            {
+                Console.WriteLine($"Profile update failed: {errorMessage}");
+                return;
+            }
+
+            Console.WriteLine("Profile updated successfully!");
+            Console.WriteLine(loggedInUser.GetCandidateProfile());
         }
 
         // REQ-013 / KAN-17: end the logged-in session and return to the main menu.
