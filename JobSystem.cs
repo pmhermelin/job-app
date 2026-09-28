@@ -192,5 +192,43 @@ namespace JobApp
 
         // Helper for tests (KAN-20): verify userCount is unchanged after a failed registration.
         public int GetUserCount() => userCount;
+
+        // ---------- REQ-002 / KAN-6: login ----------
+        // Logic per design doc section 6.2.
+        // errorMessage is returned via out so Program can show a clear message without throwing exceptions.
+        public User Login(string email, string password, out string errorMessage)
+        {
+            errorMessage = "";
+
+            if (IsBlank(email) || IsBlank(password))
+            {
+                errorMessage = "Email and password are required.";
+                return null;
+            }
+
+            for (int i = 0; i < userCount; i++)
+            {
+                if (users[i].GetEmail().Equals(email, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!users[i].CheckPassword(password))
+                    {
+                        // Same generic message as "not found" - do not reveal which part was wrong.
+                        errorMessage = "Invalid email or password.";
+                        return null;
+                    }
+
+                    if (users[i].IsSuspended())
+                    {
+                        errorMessage = "This account has been suspended. Contact the system administrator.";
+                        return null;
+                    }
+
+                    return users[i];
+                }
+            }
+
+            errorMessage = "Invalid email or password.";
+            return null;
+        }
     }
 }
