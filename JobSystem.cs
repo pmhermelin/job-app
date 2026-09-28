@@ -12,6 +12,8 @@ namespace JobApp
     {
         private const int MaxUsers = 100;
         private const int MaxCompanies = 100;
+        private const int MaxJobs = 200;
+        private const int MaxApplications = 500;
 
         private User[] users;
         private int userCount;
@@ -19,8 +21,16 @@ namespace JobApp
         private Company[] companies;
         private int companyCount;
 
+        private Job[] jobs;
+        private int jobCount;
+
+        private Application[] applications;
+        private int applicationCount;
+
         private int nextUserId;
         private int nextCompanyId;
+        private int nextJobId;
+        private int nextApplicationId;
 
         public JobSystem()
         {
@@ -30,10 +40,41 @@ namespace JobApp
             companies = new Company[MaxCompanies];
             companyCount = 0;
 
+            jobs = new Job[MaxJobs];
+            jobCount = 0;
+
+            applications = new Application[MaxApplications];
+            applicationCount = 0;
+
             nextUserId = 1;
             nextCompanyId = 1;
+            nextJobId = 1;
+            nextApplicationId = 1;
 
             SeedAdmin();
+            SeedDemoJobs();
+        }
+
+        // Publishing jobs (REQ-005, KAN-9) is a teammate's story and not implemented yet.
+        // A couple of OPEN demo jobs are seeded here only so KAN-8 (submitApplication) has
+        // something to apply to and can actually be tested manually; remove/replace once
+        // publishJob() exists.
+        private void SeedDemoJobs()
+        {
+            Company demoCompany = new Company(nextCompanyId, "Demo Company", "Seeded for testing KAN-8.", null);
+            companies[companyCount] = demoCompany;
+            companyCount++;
+            nextCompanyId++;
+
+            Job job1 = new Job(nextJobId, "Backend Developer", "Work on the server side.", "Software", "Tel Aviv", "Full-time", demoCompany, null);
+            jobs[jobCount] = job1;
+            jobCount++;
+            nextJobId++;
+
+            Job job2 = new Job(nextJobId, "QA Intern", "Manual and automated testing.", "QA", "Haifa", "Internship", demoCompany, null);
+            jobs[jobCount] = job2;
+            jobCount++;
+            nextJobId++;
         }
 
         // The admin account is created in the constructor; ADMIN cannot be chosen at registration (design doc, section 4.4).
@@ -280,6 +321,97 @@ namespace JobApp
 
             // All checks passed - update only after every value is valid (design doc 6.11, step 4).
             profile.UpdateProfile(education, experience, skills, summary);
+            return true;
+        }
+
+        // ---------- REQ-004 / KAN-8: submitApplication ----------
+        // Logic per design doc section 6.4.
+
+        public Job FindJobById(int jobId)
+        {
+            for (int i = 0; i < jobCount; i++)
+            {
+                if (jobs[i].GetId() == jobId)
+                {
+                    return jobs[i];
+                }
+            }
+            return null;
+        }
+
+        // Helper for Program: only OPEN jobs are offered for application.
+        public Job[] GetOpenJobs(out int count)
+        {
+            Job[] open = new Job[jobCount];
+            count = 0;
+            for (int i = 0; i < jobCount; i++)
+            {
+                if (jobs[i].IsOpen())
+                {
+                    open[count] = jobs[i];
+                    count++;
+                }
+            }
+            return open;
+        }
+
+        // errorMessage is returned via out so Program can show a clear message without throwing exceptions.
+        public bool SubmitApplication(User candidate, int jobId, out string errorMessage)
+        {
+            errorMessage = "";
+
+            // Step 1: candidate must be CANDIDATE type and not suspended.
+            if (candidate == null || candidate.GetUserType() != "CANDIDATE")
+            {
+                errorMessage = "Only job seekers can submit applications.";
+                return false;
+            }
+
+            if (candidate.IsSuspended())
+            {
+                errorMessage = "This account has been suspended. Contact the system administrator.";
+                return false;
+            }
+
+            // Step 2-3: job must exist and be OPEN.
+            Job job = FindJobById(jobId);
+            if (job == null || !job.IsOpen())
+            {
+                errorMessage = "Job not found or is not open for applications.";
+                return false;
+            }
+
+            // Step 4: profile must exist and be complete.
+            CandidateProfile profile = candidate.GetCandidateProfile();
+            if (profile == null || !profile.IsComplete())
+            {
+                errorMessage = "Please complete your profile (education, experience, skills, summary) before applying.";
+                return false;
+            }
+
+            // Step 5: no duplicate application by the same candidate to the same job.
+            for (int i = 0; i < applicationCount; i++)
+            {
+                if (applications[i].GetCandidate() == candidate && applications[i].GetJob() == job)
+                {
+                    errorMessage = "You have already applied to this job.";
+                    return false;
+                }
+            }
+
+            // Step 6: capacity check.
+            if (applicationCount >= MaxApplications)
+            {
+                errorMessage = "The system is full, no more applications can be added.";
+                return false;
+            }
+
+            // Step 7: all checks passed - create the application (NEW status, set in the constructor).
+            Application application = new Application(nextApplicationId, candidate, job);
+            applications[applicationCount] = application;
+            applicationCount++;
+            nextApplicationId++;
+
             return true;
         }
     }

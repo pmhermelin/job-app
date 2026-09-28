@@ -159,8 +159,10 @@ namespace JobApp
                 {
                     // REQ-009 / KAN-13: only job seekers may update a candidate profile (design doc 4.3).
                     Console.WriteLine("2 - Update my profile");
+                    // REQ-004 / KAN-8: only job seekers may submit applications (design doc 4.3).
+                    Console.WriteLine("3 - Apply to a job");
                 }
-                Console.WriteLine("3 - Logout");
+                Console.WriteLine("4 - Logout");
                 Console.Write("Choice: ");
 
                 string choice = Console.ReadLine();
@@ -181,6 +183,16 @@ namespace JobApp
                         }
                         break;
                     case "3":
+                        if (isCandidate)
+                        {
+                            HandleSubmitApplication(system, loggedInUser);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid choice, please try again.");
+                        }
+                        break;
+                    case "4":
                         loggedIn = false;
                         HandleLogout(loggedInUser);
                         break;
@@ -220,6 +232,45 @@ namespace JobApp
 
             Console.WriteLine("Profile updated successfully!");
             Console.WriteLine(loggedInUser.GetCandidateProfile());
+        }
+
+        // REQ-004 / KAN-8: list open jobs, capture a job id, call JobSystem.SubmitApplication, display the result.
+        static void HandleSubmitApplication(JobSystem system, User loggedInUser)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Apply to a job --");
+
+            Job[] openJobs = system.GetOpenJobs(out int openCount);
+
+            if (openCount == 0)
+            {
+                Console.WriteLine("There are no open jobs right now.");
+                return;
+            }
+
+            for (int i = 0; i < openCount; i++)
+            {
+                Console.WriteLine(openJobs[i]);
+            }
+
+            Console.Write("Job id to apply to: ");
+            string input = Console.ReadLine();
+
+            if (!int.TryParse(input, out int jobId))
+            {
+                Console.WriteLine("Invalid job id.");
+                return;
+            }
+
+            bool success = system.SubmitApplication(loggedInUser, jobId, out string errorMessage);
+
+            if (!success)
+            {
+                Console.WriteLine($"Application failed: {errorMessage}");
+                return;
+            }
+
+            Console.WriteLine("Application submitted successfully!");
         }
 
         // REQ-013 / KAN-17: end the logged-in session and return to the main menu.
