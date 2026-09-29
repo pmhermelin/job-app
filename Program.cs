@@ -148,6 +148,7 @@ namespace JobApp
         static void RunLoggedInSession(JobSystem system, User loggedInUser)
         {
             bool isCandidate = loggedInUser.GetUserType() == "CANDIDATE";
+            bool isEmployer = loggedInUser.GetUserType() == "EMPLOYER";
 
             bool loggedIn = true;
             while (loggedIn)
@@ -161,6 +162,12 @@ namespace JobApp
                     Console.WriteLine("2 - Update my profile");
                     // REQ-004 / KAN-8: only job seekers may submit applications (design doc 4.3).
                     Console.WriteLine("3 - Apply to a job");
+                }
+                if (isEmployer)
+                {
+                    Console.WriteLine("2 - Publish a job");
+                    Console.WriteLine("3 - Edit a job");
+                    Console.WriteLine("5 - Close a job");
                 }
                 Console.WriteLine("4 - Logout");
                 Console.Write("Choice: ");
@@ -177,6 +184,10 @@ namespace JobApp
                         {
                             HandleUpdateCandidateProfile(system, loggedInUser);
                         }
+                        else if (isEmployer)
+                        {
+                            HandlePublishJob(system, loggedInUser);
+                        }
                         else
                         {
                             Console.WriteLine("Invalid choice, please try again.");
@@ -187,6 +198,10 @@ namespace JobApp
                         {
                             HandleSubmitApplication(system, loggedInUser);
                         }
+                        else if (isEmployer)
+                        {
+                            HandleEditJob(system, loggedInUser);
+                        }
                         else
                         {
                             Console.WriteLine("Invalid choice, please try again.");
@@ -195,6 +210,12 @@ namespace JobApp
                     case "4":
                         loggedIn = false;
                         HandleLogout(loggedInUser);
+                        break;
+                    case "5":
+                        if (isEmployer)
+                            HandleCloseJob(system, loggedInUser);
+                        else
+                            Console.WriteLine("Invalid choice, please try again.");
                         break;
                     default:
                         Console.WriteLine("Invalid choice, please try again.");
@@ -271,6 +292,78 @@ namespace JobApp
             }
 
             Console.WriteLine("Application submitted successfully!");
+        }
+
+        // REQ-005 / KAN-9: employer actions are routed through JobSystem.
+        static void HandlePublishJob(JobSystem system, User employer)
+        {
+            Console.WriteLine("-- Publish a job --");
+            ReadJobDetails(out string title, out string description, out string field,
+                           out string location, out string jobType);
+            if (system.PublishJob(employer, title, description, field, location,
+                                  jobType, out int createdJobId, out string errorMessage))
+                Console.WriteLine($"Job #{createdJobId} published successfully.");
+            else
+                Console.WriteLine($"Publishing failed: {errorMessage}");
+        }
+
+        static void HandleEditJob(JobSystem system, User employer)
+        {
+            Console.WriteLine("-- Edit a job --");
+            Console.Write("Job id: ");
+            if (!int.TryParse(Console.ReadLine(), out int jobId))
+            {
+                Console.WriteLine("Invalid job id.");
+                return;
+            }
+
+            ReadJobDetails(out string title, out string description, out string field,
+                           out string location, out string jobType);
+            if (system.EditJob(employer, jobId, title, description, field,
+                               location, jobType, out string errorMessage))
+                Console.WriteLine("Job updated successfully.");
+            else
+                Console.WriteLine($"Update failed: {errorMessage}");
+        }
+
+        static void HandleCloseJob(JobSystem system, User employer)
+        {
+            Console.WriteLine("-- Close a job --");
+            Console.Write("Job id: ");
+            if (!int.TryParse(Console.ReadLine(), out int jobId))
+            {
+                Console.WriteLine("Invalid job id.");
+                return;
+            }
+
+            if (system.CloseJob(employer, jobId, out string errorMessage))
+                Console.WriteLine("Job closed successfully.");
+            else
+                Console.WriteLine($"Closing failed: {errorMessage}");
+        }
+
+        static void ReadJobDetails(out string title, out string description,
+                                   out string field, out string location,
+                                   out string jobType)
+        {
+            Console.Write("Title: ");
+            title = Console.ReadLine();
+            Console.Write("Description: ");
+            description = Console.ReadLine();
+            Console.Write("Field: ");
+            field = Console.ReadLine();
+            Console.Write("Location: ");
+            location = Console.ReadLine();
+            Console.WriteLine("Job type: 1 - Full-time, 2 - Part-time, 3 - Temporary, 4 - Internship");
+            Console.Write("Choice: ");
+            switch (Console.ReadLine())
+            {
+                case "1": jobType = "Full-time"; break;
+                case "2": jobType = "Part-time"; break;
+                case "3": jobType = "Temporary"; break;
+                case "4": jobType = "Internship"; break;
+                default: jobType = ""; break;
+            }
         }
 
         // REQ-013 / KAN-17: end the logged-in session and return to the main menu.

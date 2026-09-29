@@ -5,9 +5,6 @@ namespace JobApp
 {
     // Central system class (design doc, section 5.8).
     // Holds all data arrays and implements the business logic and permissions.
-    // Team note: only KAN-5 (registerUser) is implemented so far. The other stories (KAN-6, KAN-13,
-    // KAN-8, KAN-17, plus Zohar's and Avraham's jobs/applications/reports stories) will add fields and
-    // methods to this same class on other branches - expect merge conflicts, coordinate with the team.
     public class JobSystem
     {
         private const int MaxUsers = 100;
@@ -52,29 +49,6 @@ namespace JobApp
             nextApplicationId = 1;
 
             SeedAdmin();
-            SeedDemoJobs();
-        }
-
-        // Publishing jobs (REQ-005, KAN-9) is a teammate's story and not implemented yet.
-        // A couple of OPEN demo jobs are seeded here only so KAN-8 (submitApplication) has
-        // something to apply to and can actually be tested manually; remove/replace once
-        // publishJob() exists.
-        private void SeedDemoJobs()
-        {
-            Company demoCompany = new Company(nextCompanyId, "Demo Company", "Seeded for testing KAN-8.", null);
-            companies[companyCount] = demoCompany;
-            companyCount++;
-            nextCompanyId++;
-
-            Job job1 = new Job(nextJobId, "Backend Developer", "Work on the server side.", "Software", "Tel Aviv", "Full-time", demoCompany, null);
-            jobs[jobCount] = job1;
-            jobCount++;
-            nextJobId++;
-
-            Job job2 = new Job(nextJobId, "QA Intern", "Manual and automated testing.", "QA", "Haifa", "Internship", demoCompany, null);
-            jobs[jobCount] = job2;
-            jobCount++;
-            nextJobId++;
         }
 
         // The admin account is created in the constructor; ADMIN cannot be chosen at registration (design doc, section 4.4).
@@ -413,6 +387,127 @@ namespace JobApp
             nextApplicationId++;
 
             return true;
+        }
+
+        // ---------- REQ-005 / KAN-9: publish, edit and close jobs ----------
+        public bool PublishJob(User employer, string title, string description,
+                               string field, string location, string jobType,
+                               out int createdJobId, out string errorMessage)
+        {
+            createdJobId = 0;
+            errorMessage = "";
+            if (!IsActiveEmployer(employer))
+            {
+                errorMessage = "Only an active employer can publish a job.";
+                return false;
+            }
+
+            if (!HasValidJobDetails(title, description, field, location, jobType))
+            {
+                errorMessage = "Complete every field and choose a valid job type.";
+                return false;
+            }
+
+            Company company = FindCompanyForEmployer(employer);
+            if (company == null)
+            {
+                errorMessage = "No company is linked to this employer.";
+                return false;
+            }
+
+            if (jobCount >= MaxJobs || nextJobId == int.MaxValue)
+            {
+                errorMessage = "The system is full, no more jobs can be added.";
+                return false;
+            }
+
+            int openJobCount = 0;
+            for (int i = 0; i < jobCount; i++)
+            {
+                if (jobs[i].GetEmployer() == employer && jobs[i].IsOpen())
+                    openJobCount++;
+            }
+            if (openJobCount >= 20)
+            {
+                errorMessage = "An employer can have at most 20 open jobs.";
+                return false;
+            }
+
+            // Create only after validation; failure leaves the array and counters untouched.
+            Job job = new Job(nextJobId, title.Trim(), description.Trim(),
+                              field.Trim(), location.Trim(), jobType, company, employer);
+            jobs[jobCount] = job;
+            jobCount++;
+            createdJobId = nextJobId;
+            nextJobId++;
+            return true;
+        }
+
+        public bool EditJob(User employer, int jobId, string title, string description,
+                            string field, string location, string jobType,
+                            out string errorMessage)
+        {
+            errorMessage = "";
+            if (!IsActiveEmployer(employer))
+            {
+                errorMessage = "Only an active employer can edit a job.";
+                return false;
+            }
+
+            Job job = FindJobById(jobId);
+            if (job == null || job.GetEmployer() != employer || !job.IsOpen())
+            {
+                errorMessage = "Open job not found or it does not belong to you.";
+                return false;
+            }
+
+            if (!HasValidJobDetails(title, description, field, location, jobType))
+            {
+                errorMessage = "Complete every field and choose a valid job type.";
+                return false;
+            }
+
+            return job.UpdateDetails(title, description, field, location, jobType);
+        }
+
+        public bool CloseJob(User employer, int jobId, out string errorMessage)
+        {
+            errorMessage = "";
+            if (!IsActiveEmployer(employer))
+            {
+                errorMessage = "Only an active employer can close a job.";
+                return false;
+            }
+
+            Job job = FindJobById(jobId);
+            if (job == null || job.GetEmployer() != employer || !job.Close())
+            {
+                errorMessage = "Open job not found or it does not belong to you.";
+                return false;
+            }
+            return true;
+        }
+
+        private static bool IsActiveEmployer(User employer) =>
+            employer != null && employer.GetUserType() == "EMPLOYER" &&
+            !employer.IsSuspended();
+
+        private static bool HasValidJobDetails(string title, string description,
+                                               string field, string location,
+                                               string jobType) =>
+            !string.IsNullOrWhiteSpace(title) &&
+            !string.IsNullOrWhiteSpace(description) &&
+            !string.IsNullOrWhiteSpace(field) &&
+            !string.IsNullOrWhiteSpace(location) && Job.IsValidJobType(jobType);
+
+        private Company FindCompanyForEmployer(User employer)
+        {
+            for (int i = 0; i < companyCount; i++)
+            {
+                if (companies[i].GetEmployer() == employer)
+                    return companies[i];
+            }
+            return null;
         }
     }
 }
