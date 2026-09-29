@@ -22,7 +22,7 @@ namespace JobApp
                 Console.WriteLine("==== Job Listing Management System ====");
                 Console.WriteLine("1 - Register");
                 Console.WriteLine("2 - Login");
-                Console.WriteLine("3 - Search open jobs (not implemented yet)");
+                Console.WriteLine("3 - Search open jobs");
                 Console.WriteLine("4 - Exit");
                 Console.Write("Choice: ");
 
@@ -37,7 +37,7 @@ namespace JobApp
                         HandleLogin(system);
                         break;
                     case "3":
-                        Console.WriteLine("Job search is not implemented yet (KAN-9 / KAN-14).");
+                        HandleSearchJobs(system);
                         break;
                     case "4":
                         running = false;
@@ -162,6 +162,7 @@ namespace JobApp
                     Console.WriteLine("2 - Update my profile");
                     // REQ-004 / KAN-8: only job seekers may submit applications (design doc 4.3).
                     Console.WriteLine("3 - Apply to a job");
+                    Console.WriteLine("6 - Search open jobs");
                 }
                 if (isEmployer)
                 {
@@ -214,6 +215,12 @@ namespace JobApp
                     case "5":
                         if (isEmployer)
                             HandleCloseJob(system, loggedInUser);
+                        else
+                            Console.WriteLine("Invalid choice, please try again.");
+                        break;
+                    case "6":
+                        if (isCandidate)
+                            HandleSearchJobs(system);
                         else
                             Console.WriteLine("Invalid choice, please try again.");
                         break;
@@ -292,6 +299,29 @@ namespace JobApp
             }
 
             Console.WriteLine("Application submitted successfully!");
+        }
+
+        // REQ-003 / KAN-7: Enter skips any filter; matching remains in JobSystem.
+        static void HandleSearchJobs(JobSystem system)
+        {
+            Console.WriteLine("-- Search open jobs (press Enter to skip a filter) --");
+            Console.Write("Keyword: ");
+            string keyword = Console.ReadLine();
+            Console.Write("Field: ");
+            string field = Console.ReadLine();
+            Console.Write("Location: ");
+            string location = Console.ReadLine();
+            Console.Write("Job type (Full-time / Part-time / Temporary / Internship): ");
+            string jobType = Console.ReadLine();
+
+            Job[] results = system.SearchJobs(keyword, field, location, jobType, out int count);
+            if (count == 0)
+            {
+                Console.WriteLine("No open jobs match your search.");
+                return;
+            }
+            for (int i = 0; i < count; i++)
+                Console.WriteLine(results[i]);
         }
 
         // REQ-005 / KAN-9: employer actions are routed through JobSystem.
