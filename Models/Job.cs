@@ -1,8 +1,6 @@
 namespace JobApp.Models
 {
     // REQ-005: represents a job posting linked to the company and employer that published it.
-    // Full publish/edit/close flow (REQ-005, KAN-9) belongs to a teammate's story; only the
-    // fields and read-only behavior needed for KAN-8 (submitApplication) are implemented here.
     public class Job
     {
         private int id;
@@ -43,6 +41,36 @@ namespace JobApp.Models
         public void SetStatus(string status) => this.status = status;
 
         public bool IsOpen() => status == "OPEN";
+
+        // KAN-9: validate every new value before changing any job data.
+        public bool UpdateDetails(string newTitle, string newDescription, string newField,
+                                  string newLocation, string newJobType)
+        {
+            if (!IsOpen() || string.IsNullOrWhiteSpace(newTitle) ||
+                string.IsNullOrWhiteSpace(newDescription) ||
+                string.IsNullOrWhiteSpace(newField) ||
+                string.IsNullOrWhiteSpace(newLocation) ||
+                !IsValidJobType(newJobType))
+                return false;
+
+            title = newTitle.Trim();
+            description = newDescription.Trim();
+            field = newField.Trim();
+            location = newLocation.Trim();
+            jobType = newJobType;
+            return true;
+        }
+
+        public bool Close()
+        {
+            if (!IsOpen()) return false;
+            status = "CLOSED";
+            return true;
+        }
+
+        public static bool IsValidJobType(string value) =>
+            value == "Full-time" || value == "Part-time" ||
+            value == "Temporary" || value == "Internship";
 
         public override string ToString()
         {
