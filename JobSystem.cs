@@ -538,5 +538,15 @@ namespace JobApp
 
         private static bool ContainsIgnoreCase(string value, string filter) =>
             value != null && value.IndexOf(filter.Trim(), StringComparison.OrdinalIgnoreCase) >= 0;
+
+        // REQ-010 / KAN-14: hide administratively removed jobs from public viewers.
+        public Job GetVisibleJobById(User viewer, int jobId)
+        {
+            Job job = FindJobById(jobId);
+            if (job == null || job.GetStatus() == "REMOVED") return null;
+            if (viewer != null && viewer.GetUserType() == "EMPLOYER" &&
+                job.GetEmployer() != viewer) return null;
+            return job;
+        }
     }
 }

@@ -37,7 +37,7 @@ namespace JobApp
                         HandleLogin(system);
                         break;
                     case "3":
-                        HandleSearchJobs(system);
+                        HandleSearchJobs(system, null);
                         break;
                     case "4":
                         running = false;
@@ -220,7 +220,7 @@ namespace JobApp
                         break;
                     case "6":
                         if (isCandidate)
-                            HandleSearchJobs(system);
+                            HandleSearchJobs(system, loggedInUser);
                         else
                             Console.WriteLine("Invalid choice, please try again.");
                         break;
@@ -302,7 +302,7 @@ namespace JobApp
         }
 
         // REQ-003 / KAN-7: Enter skips any filter; matching remains in JobSystem.
-        static void HandleSearchJobs(JobSystem system)
+        static void HandleSearchJobs(JobSystem system, User viewer)
         {
             Console.WriteLine("-- Search open jobs (press Enter to skip a filter) --");
             Console.Write("Keyword: ");
@@ -322,6 +322,52 @@ namespace JobApp
             }
             for (int i = 0; i < count; i++)
                 Console.WriteLine(results[i]);
+
+            Console.Write("Enter a job id to view its details, or press Enter to return: ");
+            string selection = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(selection)) return;
+            if (!int.TryParse(selection, out int jobId))
+            {
+                Console.WriteLine("Invalid job id.");
+                return;
+            }
+            HandleViewJobDetails(system, viewer, jobId);
+        }
+
+        // REQ-010 / KAN-14: show full details and offer application only to a candidate.
+        static void HandleViewJobDetails(JobSystem system, User viewer, int jobId)
+        {
+            Job job = system.GetVisibleJobById(viewer, jobId);
+            if (job == null)
+            {
+                Console.WriteLine("Job not found or unavailable.");
+                return;
+            }
+
+            Console.WriteLine($"Job #{job.GetId()}");
+            Console.WriteLine($"Title: {job.GetTitle()}");
+            Console.WriteLine($"Company: {job.GetCompany()?.GetName() ?? "Unknown"}");
+            Console.WriteLine($"Description: {job.GetDescription()}");
+            Console.WriteLine($"Field: {job.GetField()}");
+            Console.WriteLine($"Location: {job.GetLocation()}");
+            Console.WriteLine($"Job type: {job.GetJobType()}");
+            Console.WriteLine($"Status: {job.GetStatus()}");
+
+            if (viewer == null || viewer.GetUserType() != "CANDIDATE" || !job.IsOpen())
+            {
+                Console.WriteLine("Press Enter to return.");
+                Console.ReadLine();
+                return;
+            }
+
+            Console.Write("1 - Apply to this job, Enter - Return: ");
+            if (Console.ReadLine() == "1")
+            {
+                if (system.SubmitApplication(viewer, jobId, out string errorMessage))
+                    Console.WriteLine("Application submitted successfully!");
+                else
+                    Console.WriteLine($"Application failed: {errorMessage}");
+            }
         }
 
         // REQ-005 / KAN-9: employer actions are routed through JobSystem.
