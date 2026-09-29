@@ -548,5 +548,75 @@ namespace JobApp
                 job.GetEmployer() != viewer) return null;
             return job;
         }
+
+        // REQ-006 / KAN-10: only the job owner may inspect candidate profiles.
+        public Application[] GetApplicantsForJob(User employer, int jobId,
+                                                 out int count, out string errorMessage)
+        {
+            count = 0;
+            errorMessage = "";
+            Job job = FindJobById(jobId);
+            if (!IsActiveEmployer(employer) || job == null || job.GetEmployer() != employer)
+            {
+                errorMessage = "Job not found or it does not belong to you.";
+                return Array.Empty<Application>();
+            }
+
+            Application[] matches = new Application[applicationCount];
+            for (int i = 0; i < applicationCount; i++)
+            {
+                if (applications[i].GetJob() == job)
+                    matches[count++] = applications[i];
+            }
+            return matches;
+        }
+
+        public bool UpdateApplicationStatus(User employer, int applicationId,
+                                            string newStatus, out string errorMessage)
+        {
+            errorMessage = "";
+            if (!IsActiveEmployer(employer))
+            {
+                errorMessage = "Only an active employer can update applications.";
+                return false;
+            }
+            if (newStatus != "NEW" && newStatus != "UNDER_REVIEW" &&
+                newStatus != "INTERVIEW" && newStatus != "ACCEPTED" &&
+                newStatus != "REJECTED")
+            {
+                errorMessage = "Invalid application status.";
+                return false;
+            }
+            for (int i = 0; i < applicationCount; i++)
+            {
+                Application application = applications[i];
+                if (application.GetId() != applicationId) continue;
+                if (application.GetJob().GetEmployer() != employer)
+                {
+                    errorMessage = "Application not found or it does not belong to your job.";
+                    return false;
+                }
+                application.SetStatus(newStatus);
+                return true;
+            }
+            errorMessage = "Application not found or it does not belong to your job.";
+            return false;
+        }
+
+        // Candidates may inspect only their own application statuses.
+        public Application[] GetMyApplications(User candidate, out int count)
+        {
+            count = 0;
+            if (candidate == null || candidate.GetUserType() != "CANDIDATE" ||
+                candidate.IsSuspended()) return Array.Empty<Application>();
+
+            Application[] mine = new Application[applicationCount];
+            for (int i = 0; i < applicationCount; i++)
+            {
+                if (applications[i].GetCandidate() == candidate)
+                    mine[count++] = applications[i];
+            }
+            return mine;
+        }
     }
 }

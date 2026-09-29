@@ -163,12 +163,15 @@ namespace JobApp
                     // REQ-004 / KAN-8: only job seekers may submit applications (design doc 4.3).
                     Console.WriteLine("3 - Apply to a job");
                     Console.WriteLine("6 - Search open jobs");
+                    Console.WriteLine("7 - My applications");
                 }
                 if (isEmployer)
                 {
                     Console.WriteLine("2 - Publish a job");
                     Console.WriteLine("3 - Edit a job");
                     Console.WriteLine("5 - Close a job");
+                    Console.WriteLine("7 - View applicants for a job");
+                    Console.WriteLine("8 - Update application status");
                 }
                 Console.WriteLine("4 - Logout");
                 Console.Write("Choice: ");
@@ -221,6 +224,20 @@ namespace JobApp
                     case "6":
                         if (isCandidate)
                             HandleSearchJobs(system, loggedInUser);
+                        else
+                            Console.WriteLine("Invalid choice, please try again.");
+                        break;
+                    case "7":
+                        if (isCandidate)
+                            HandleMyApplications(system, loggedInUser);
+                        else if (isEmployer)
+                            HandleApplicants(system, loggedInUser);
+                        else
+                            Console.WriteLine("Invalid choice, please try again.");
+                        break;
+                    case "8":
+                        if (isEmployer)
+                            HandleApplicationStatus(system, loggedInUser);
                         else
                             Console.WriteLine("Invalid choice, please try again.");
                         break;
@@ -368,6 +385,65 @@ namespace JobApp
                 else
                     Console.WriteLine($"Application failed: {errorMessage}");
             }
+        }
+
+        // REQ-006 / KAN-10: the service checks ownership before exposing profiles.
+        static void HandleApplicants(JobSystem system, User employer)
+        {
+            Console.Write("Job id: ");
+            if (!int.TryParse(Console.ReadLine(), out int jobId))
+            {
+                Console.WriteLine("Invalid job id.");
+                return;
+            }
+            Application[] applicants = system.GetApplicantsForJob(employer, jobId,
+                                                                  out int count, out string errorMessage);
+            if (errorMessage != "")
+            {
+                Console.WriteLine(errorMessage);
+                return;
+            }
+            if (count == 0) Console.WriteLine("No applicants for this job yet.");
+            for (int i = 0; i < count; i++)
+            {
+                User candidate = applicants[i].GetCandidate();
+                Console.WriteLine(applicants[i]);
+                Console.WriteLine($"Candidate: {candidate.GetName()} | {candidate.GetEmail()}");
+                Console.WriteLine(candidate.GetCandidateProfile());
+            }
+        }
+
+        static void HandleApplicationStatus(JobSystem system, User employer)
+        {
+            Console.Write("Application id: ");
+            if (!int.TryParse(Console.ReadLine(), out int applicationId))
+            {
+                Console.WriteLine("Invalid application id.");
+                return;
+            }
+            Console.WriteLine("Status: 1 - NEW, 2 - UNDER_REVIEW, 3 - INTERVIEW, 4 - ACCEPTED, 5 - REJECTED");
+            Console.Write("Choice: ");
+            string status;
+            switch (Console.ReadLine())
+            {
+                case "1": status = "NEW"; break;
+                case "2": status = "UNDER_REVIEW"; break;
+                case "3": status = "INTERVIEW"; break;
+                case "4": status = "ACCEPTED"; break;
+                case "5": status = "REJECTED"; break;
+                default: status = ""; break;
+            }
+            if (system.UpdateApplicationStatus(employer, applicationId, status, out string errorMessage))
+                Console.WriteLine("Application status updated.");
+            else
+                Console.WriteLine($"Update failed: {errorMessage}");
+        }
+
+        static void HandleMyApplications(JobSystem system, User candidate)
+        {
+            Application[] mine = system.GetMyApplications(candidate, out int count);
+            if (count == 0) Console.WriteLine("You have no applications yet.");
+            for (int i = 0; i < count; i++) Console.WriteLine(mine[i]);
         }
 
         // REQ-005 / KAN-9: employer actions are routed through JobSystem.
