@@ -170,6 +170,7 @@ namespace JobApp
                     Console.WriteLine("2 - Publish a job");
                     Console.WriteLine("3 - Edit a job");
                     Console.WriteLine("5 - Close a job");
+                    Console.WriteLine("6 - My jobs");
                     Console.WriteLine("7 - View applicants for a job");
                     Console.WriteLine("8 - Update application status");
                 }
@@ -224,6 +225,8 @@ namespace JobApp
                     case "6":
                         if (isCandidate)
                             HandleSearchJobs(system, loggedInUser);
+                        else if (isEmployer)
+                            HandleEmployerJobs(system, loggedInUser);
                         else
                             Console.WriteLine("Invalid choice, please try again.");
                         break;
@@ -446,6 +449,50 @@ namespace JobApp
             for (int i = 0; i < count; i++) Console.WriteLine(mine[i]);
         }
 
+        // REQ-012 / KAN-16: list only this employer's jobs and navigate by id.
+        static void HandleEmployerJobs(JobSystem system, User employer)
+        {
+            Job[] owned = system.GetEmployerJobs(employer, out int count);
+            if (count == 0)
+            {
+                Console.WriteLine("You have no jobs yet.");
+                return;
+            }
+            for (int i = 0; i < count; i++)
+            {
+                Job job = owned[i];
+                int applications = system.CountApplicationsForEmployerJob(employer, job.GetId());
+                Console.WriteLine($"Job #{job.GetId()} | {job.GetTitle()} | {job.GetStatus()} | Applications: {applications}");
+            }
+
+            Console.Write("Job id to manage (Enter to return): ");
+            string input = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(input)) return;
+            if (!int.TryParse(input, out int jobId))
+            {
+                Console.WriteLine("Invalid job id.");
+                return;
+            }
+            bool found = false;
+            for (int i = 0; i < count; i++)
+            {
+                if (owned[i].GetId() == jobId) found = true;
+            }
+            if (!found)
+            {
+                Console.WriteLine("Job not found in your list.");
+                return;
+            }
+
+            Console.Write("1 - View details, 2 - Edit, 3 - Close, Enter - Return: ");
+            switch (Console.ReadLine())
+            {
+                case "1": HandleViewJobDetails(system, employer, jobId); break;
+                case "2": HandleEditJob(system, employer, jobId); break;
+                case "3": HandleCloseJob(system, employer, jobId); break;
+            }
+        }
+
         // REQ-005 / KAN-9: employer actions are routed through JobSystem.
         static void HandlePublishJob(JobSystem system, User employer)
         {
@@ -469,6 +516,12 @@ namespace JobApp
                 return;
             }
 
+            HandleEditJob(system, employer, jobId);
+        }
+
+        static void HandleEditJob(JobSystem system, User employer, int jobId)
+        {
+
             ReadJobDetails(out string title, out string description, out string field,
                            out string location, out string jobType);
             if (system.EditJob(employer, jobId, title, description, field,
@@ -487,6 +540,12 @@ namespace JobApp
                 Console.WriteLine("Invalid job id.");
                 return;
             }
+
+            HandleCloseJob(system, employer, jobId);
+        }
+
+        static void HandleCloseJob(JobSystem system, User employer, int jobId)
+        {
 
             if (system.CloseJob(employer, jobId, out string errorMessage))
                 Console.WriteLine("Job closed successfully.");

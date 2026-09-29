@@ -543,7 +543,9 @@ namespace JobApp
         public Job GetVisibleJobById(User viewer, int jobId)
         {
             Job job = FindJobById(jobId);
-            if (job == null || job.GetStatus() == "REMOVED") return null;
+            if (job == null) return null;
+            if (job.GetStatus() == "REMOVED" &&
+                (viewer == null || viewer.GetUserType() == "CANDIDATE")) return null;
             if (viewer != null && viewer.GetUserType() == "EMPLOYER" &&
                 job.GetEmployer() != viewer) return null;
             return job;
@@ -617,6 +619,33 @@ namespace JobApp
                     mine[count++] = applications[i];
             }
             return mine;
+        }
+
+        // REQ-012 / KAN-16: keep ownership and application counting in JobSystem.
+        public Job[] GetEmployerJobs(User employer, out int count)
+        {
+            count = 0;
+            if (!IsActiveEmployer(employer)) return Array.Empty<Job>();
+            Job[] owned = new Job[jobCount];
+            for (int i = 0; i < jobCount; i++)
+            {
+                if (jobs[i].GetEmployer() == employer)
+                    owned[count++] = jobs[i];
+            }
+            return owned;
+        }
+
+        public int CountApplicationsForEmployerJob(User employer, int jobId)
+        {
+            Job job = FindJobById(jobId);
+            if (!IsActiveEmployer(employer) || job == null || job.GetEmployer() != employer)
+                return 0;
+            int count = 0;
+            for (int i = 0; i < applicationCount; i++)
+            {
+                if (applications[i].GetJob() == job) count++;
+            }
+            return count;
         }
     }
 }
