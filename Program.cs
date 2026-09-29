@@ -21,7 +21,7 @@ namespace JobApp
                 Console.WriteLine();
                 Console.WriteLine("==== Job Listing Management System ====");
                 Console.WriteLine("1 - Register");
-                Console.WriteLine("2 - Login (not implemented yet - KAN-6)");
+                Console.WriteLine("2 - Login");
                 Console.WriteLine("3 - Search open jobs (not implemented yet)");
                 Console.WriteLine("4 - Exit");
                 Console.Write("Choice: ");
@@ -34,7 +34,7 @@ namespace JobApp
                         HandleRegister(system);
                         break;
                     case "2":
-                        Console.WriteLine("Login is not implemented yet (KAN-6).");
+                        HandleLogin(system);
                         break;
                     case "3":
                         Console.WriteLine("Job search is not implemented yet (KAN-9 / KAN-14).");
@@ -110,6 +110,59 @@ namespace JobApp
             {
                 Console.WriteLine("Registration successful!");
                 Console.WriteLine(newUser);
+            }
+        }
+
+        // REQ-002 / KAN-6: capture login details, call JobSystem.Login, display the result.
+        static void HandleLogin(JobSystem system)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Login --");
+
+            Console.Write("Email: ");
+            string email = Console.ReadLine();
+
+            Console.Write("Password: ");
+            string password = Console.ReadLine();
+
+            User loggedInUser = system.Login(email, password, out string errorMessage);
+
+            if (loggedInUser == null)
+            {
+                Console.WriteLine($"Login failed: {errorMessage}");
+                return;
+            }
+
+            Console.WriteLine("Login successful!");
+            Console.WriteLine(loggedInUser);
+
+            // Role-specific menus (candidate/employer/admin) are implemented in later stories
+            // (KAN-8, KAN-13, KAN-17 and teammates' stories). For now, a minimal logged-in loop
+            // just confirms the session and returns to the main menu on logout (REQ-013 / KAN-17).
+            bool loggedIn = true;
+            while (loggedIn)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"==== Logged in as {loggedInUser.GetName()} ({loggedInUser.GetUserType()}) ====");
+                Console.WriteLine("1 - View my account info");
+                Console.WriteLine("2 - Logout");
+                Console.Write("Choice: ");
+
+                string choice = Console.ReadLine();
+
+                switch (choice)
+                {
+                    case "1":
+                        Console.WriteLine(loggedInUser);
+                        break;
+                    case "2":
+                        loggedIn = false;
+                        Console.WriteLine("Logged out.");
+                        break;
+                    default:
+                        Console.WriteLine("Invalid choice, please try again.");
+                        break;
+                }
             }
         }
     }
