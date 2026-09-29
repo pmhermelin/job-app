@@ -509,5 +509,34 @@ namespace JobApp
             }
             return null;
         }
+
+        // REQ-003 / KAN-7: all supplied filters must match an open job.
+        public Job[] SearchJobs(string keyword, string field, string location,
+                                string jobType, out int resultCount)
+        {
+            Job[] results = new Job[jobCount];
+            resultCount = 0;
+            for (int i = 0; i < jobCount; i++)
+            {
+                Job job = jobs[i];
+                if (!job.IsOpen()) continue;
+                if (!string.IsNullOrWhiteSpace(keyword) &&
+                    !ContainsIgnoreCase(job.GetTitle(), keyword) &&
+                    !ContainsIgnoreCase(job.GetDescription(), keyword)) continue;
+                if (!string.IsNullOrWhiteSpace(field) &&
+                    !ContainsIgnoreCase(job.GetField(), field)) continue;
+                if (!string.IsNullOrWhiteSpace(location) &&
+                    !ContainsIgnoreCase(job.GetLocation(), location)) continue;
+                if (!string.IsNullOrWhiteSpace(jobType) &&
+                    !string.Equals(job.GetJobType(), jobType.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+
+                results[resultCount] = job;
+                resultCount++;
+            }
+            return results;
+        }
+
+        private static bool ContainsIgnoreCase(string value, string filter) =>
+            value != null && value.IndexOf(filter.Trim(), StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }
