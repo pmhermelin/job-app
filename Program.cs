@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using JobApp.Models;
 
 namespace JobApp
@@ -198,102 +199,71 @@ namespace JobApp
             bool loggedIn = true;
             while (loggedIn)
             {
-                PrintHeader($"Logged in as {loggedInUser.GetName()} ({loggedInUser.GetUserType()})");
-                Console.WriteLine("1 - View my account info");
+                // KAN-117: the menu is built per logged-in user first (only the actions that are
+                // actually relevant to their role), then printed with simple sequential numbers
+                // (1, 2, 3...) and no gaps - regardless of role. This supersedes KAN-101/102's
+                // earlier design, where the same action always kept the same number across roles
+                // (so an EMPLOYER, for example, used to see 1, 8, 9, 10... with gaps).
+                var menuItems = new List<(string Label, Action Handler)>();
+                menuItems.Add(("View my account info", () => Console.WriteLine(loggedInUser)));
                 if (isCandidate)
                 {
                     // REQ-009 / KAN-13: only job seekers may update a candidate profile (design doc 4.3).
-                    Console.WriteLine("2 - Update my profile");
+                    menuItems.Add(("Update my profile", () => HandleUpdateCandidateProfile(system, loggedInUser)));
                     // REQ-004 / KAN-8: only job seekers may submit applications (design doc 4.3).
-                    Console.WriteLine("3 - Apply to a job");
+                    menuItems.Add(("Apply to a job", () => HandleSubmitApplication(system, loggedInUser)));
                     // REQ-011 / KAN-15: only job seekers may report a job (design doc 4.3).
-                    Console.WriteLine("5 - Report a job");
-                    Console.WriteLine("6 - Search open jobs");
-                    Console.WriteLine("7 - My applications");
+                    menuItems.Add(("Report a job", () => HandleReportJob(system, loggedInUser)));
+                    menuItems.Add(("Search open jobs", () => HandleSearchJobs(system, loggedInUser)));
+                    menuItems.Add(("My applications", () => HandleMyApplications(system, loggedInUser)));
                 }
                 if (isEmployer)
                 {
-                    Console.WriteLine("8 - Publish a job");
-                    Console.WriteLine("9 - Edit a job");
-                    Console.WriteLine("10 - Close a job");
-                    Console.WriteLine("11 - My jobs");
-                    Console.WriteLine("12 - View applicants for a job");
-                    Console.WriteLine("13 - Update application status");
+                    menuItems.Add(("Publish a job", () => HandlePublishJob(system, loggedInUser)));
+                    menuItems.Add(("Edit a job", () => HandleEditJob(system, loggedInUser)));
+                    menuItems.Add(("Close a job", () => HandleCloseJob(system, loggedInUser)));
+                    menuItems.Add(("My jobs", () => HandleEmployerJobs(system, loggedInUser)));
+                    menuItems.Add(("View applicants for a job", () => HandleApplicants(system, loggedInUser)));
+                    menuItems.Add(("Update application status", () => HandleApplicationStatus(system, loggedInUser)));
                 }
                 if (isAdmin)
                 {
                     // REQ-008 / KAN-12: only a system admin may suspend/unsuspend a user (design doc 4.3).
-                    // Numbered 14/15 (not 5) to leave "5" free for REQ-011/KAN-15 (report a job, a
-                    // teammate's still-unmerged branch) so the two branches don't collide on a number.
-                    Console.WriteLine("14 - Suspend a user");
-                    Console.WriteLine("15 - Unsuspend a user");
+                    menuItems.Add(("Suspend a user", () => HandleSuspendUser(system, loggedInUser)));
+                    menuItems.Add(("Unsuspend a user", () => HandleUnsuspendUser(system, loggedInUser)));
                     // REQ-007 / KAN-11: only a system admin may remove a job or handle a report (design doc 4.3).
-                    Console.WriteLine("16 - Remove a job");
-                    Console.WriteLine("17 - Handle a report");
+                    menuItems.Add(("Remove a job", () => HandleRemoveJob(system, loggedInUser)));
+                    menuItems.Add(("Handle a report", () => HandleReportsByAdmin(system, loggedInUser)));
                 }
-                Console.WriteLine("4 - Logout");
+                int logoutNumber = menuItems.Count + 1;
+
+                PrintHeader($"Logged in as {loggedInUser.GetName()} ({loggedInUser.GetUserType()})");
+                for (int i = 0; i < menuItems.Count; i++)
+                {
+                    Console.WriteLine($"{i + 1} - {menuItems[i].Label}");
+                }
+                Console.WriteLine($"{logoutNumber} - Logout");
                 Console.WriteLine();
                 Console.Write("Choice: ");
 
                 string choice = Console.ReadLine();
 
-                switch (choice)
+                if (!int.TryParse(choice, out int choiceNumber))
                 {
-                    case "1":
-                        Console.WriteLine(loggedInUser);
-                        break;
-                    case "2" when isCandidate:
-                        HandleUpdateCandidateProfile(system, loggedInUser);
-                        break;
-                    case "3" when isCandidate:
-                        HandleSubmitApplication(system, loggedInUser);
-                        break;
-                    case "5" when isCandidate:
-                        HandleReportJob(system, loggedInUser);
-                        break;
-                    case "6" when isCandidate:
-                        HandleSearchJobs(system, loggedInUser);
-                        break;
-                    case "7" when isCandidate:
-                        HandleMyApplications(system, loggedInUser);
-                        break;
-                    case "8" when isEmployer:
-                        HandlePublishJob(system, loggedInUser);
-                        break;
-                    case "9" when isEmployer:
-                        HandleEditJob(system, loggedInUser);
-                        break;
-                    case "10" when isEmployer:
-                        HandleCloseJob(system, loggedInUser);
-                        break;
-                    case "11" when isEmployer:
-                        HandleEmployerJobs(system, loggedInUser);
-                        break;
-                    case "12" when isEmployer:
-                        HandleApplicants(system, loggedInUser);
-                        break;
-                    case "13" when isEmployer:
-                        HandleApplicationStatus(system, loggedInUser);
-                        break;
-                    case "14" when isAdmin:
-                        HandleSuspendUser(system, loggedInUser);
-                        break;
-                    case "15" when isAdmin:
-                        HandleUnsuspendUser(system, loggedInUser);
-                        break;
-                    case "16" when isAdmin:
-                        HandleRemoveJob(system, loggedInUser);
-                        break;
-                    case "17" when isAdmin:
-                        HandleReportsByAdmin(system, loggedInUser);
-                        break;
-                    case "4":
-                        loggedIn = false;
-                        HandleLogout(loggedInUser);
-                        break;
-                    default:
-                        WriteError("Invalid choice, please try again.");
-                        break;
+                    WriteError("Invalid choice, please try again.");
+                }
+                else if (choiceNumber == logoutNumber)
+                {
+                    loggedIn = false;
+                    HandleLogout(loggedInUser);
+                }
+                else if (choiceNumber >= 1 && choiceNumber <= menuItems.Count)
+                {
+                    menuItems[choiceNumber - 1].Handler();
+                }
+                else
+                {
+                    WriteError("Invalid choice, please try again.");
                 }
             }
         }
