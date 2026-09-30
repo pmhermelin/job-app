@@ -1004,6 +1004,16 @@ namespace JobApp
             value != null && value.IndexOf(filter.Trim(), StringComparison.OrdinalIgnoreCase) >= 0;
 
         // REQ-010 / KAN-14: hide administratively removed jobs from public viewers.
+        //
+        // KAN-109 (design doc section 18.2/6.12): by design, this deliberately does NOT restrict
+        // results to jobs that appear in the filtered SearchJobs results, and does NOT hide a
+        // CLOSED job. A job id typed directly (not necessarily from a search result list) still
+        // resolves as long as it isn't REMOVED - for example a candidate who already applied
+        // wants to review the details of a job that has since closed. This is intentional and
+        // consistent with section 6.12's own logic (only "not found" or REMOVED are excluded) and
+        // with the precedent already documented for createReport in section 18.3 (a CLOSED job can
+        // still be reported by id even though it no longer appears in the open-jobs list). Only
+        // REMOVED is hidden from candidates/guests, and only cross-employer access is blocked.
         public Job GetVisibleJobById(User viewer, int jobId)
         {
             Job job = FindJobById(jobId);
@@ -1035,6 +1045,28 @@ namespace JobApp
                     matches[count++] = applications[i];
             }
             return matches;
+        }
+
+        // REQ-006 / KAN-110: allowed application status transitions (design doc section 18.2 -
+        // the original 6.8 logic let an application move between any two statuses, including
+        // backward, e.g. REJECTED -> INTERVIEW). Forward progress only: NEW -> UNDER_REVIEW ->
+        // INTERVIEW -> ACCEPTED. REJECTED is reachable from any non-terminal status, since a real
+        // hiring process can end a candidate at any stage, not only after an interview. ACCEPTED
+        // and REJECTED are terminal - no further status change is allowed from either.
+        private static bool IsAllowedApplicationStatusTransition(string currentStatus, string newStatus)
+        {
+            switch (currentStatus)
+            {
+                case "NEW":
+                    return newStatus == "UNDER_REVIEW" || newStatus == "REJECTED";
+                case "UNDER_REVIEW":
+                    return newStatus == "INTERVIEW" || newStatus == "REJECTED";
+                case "INTERVIEW":
+                    return newStatus == "ACCEPTED" || newStatus == "REJECTED";
+                default:
+                    // ACCEPTED or REJECTED: terminal, no transition out is allowed.
+                    return false;
+            }
         }
 
         public bool UpdateApplicationStatus(User employer, int applicationId,
@@ -1070,6 +1102,18 @@ namespace JobApp
                 if (application.GetJob().GetStatus() == "REMOVED")
                 {
                     errorMessage = "This job was removed by an administrator; its applications can no longer be updated.";
+                    return false;
+                }
+
+                string currentStatus = application.GetStatus();
+                if (currentStatus == newStatus)
+                {
+                    errorMessage = "This application is already in that status.";
+                    return false;
+                }
+                if (!IsAllowedApplicationStatusTransition(currentStatus, newStatus))
+                {
+                    errorMessage = $"Cannot move an application from {currentStatus} to {newStatus}.";
                     return false;
                 }
 
