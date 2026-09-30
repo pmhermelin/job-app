@@ -509,6 +509,30 @@ namespace JobApp
         // Helper for tests and for KAN-11/KAN-18 to inspect the log without exposing the array itself.
         public int GetAdminActionCount() => adminActionCount;
 
+        // ---------- REQ-014 / KAN-18: printAdminLog ----------
+        // Design doc section 6.16. ADMIN-only, read-only - there is deliberately no way to
+        // delete or edit a logged AdminAction (design doc section 5.7: "בלתי ניתנת לעריכה"),
+        // so this is the only access point Program gets to the array's contents.
+        public AdminAction[] GetAdminLog(User admin, out int count, out string errorMessage)
+        {
+            count = 0;
+            errorMessage = "";
+
+            if (admin == null || admin.GetUserType() != "ADMIN")
+            {
+                errorMessage = "Only a system administrator can view the admin log.";
+                return null;
+            }
+
+            AdminAction[] results = new AdminAction[adminActionCount];
+            for (int i = 0; i < adminActionCount; i++)
+            {
+                results[i] = adminActions[i];
+            }
+            count = adminActionCount;
+            return results;
+        }
+
         // KAN-12 review (Zohar): Program shows the found user's details/status before the admin
         // confirms suspend/unsuspend, so it needs a permission-checked way to look one up on its
         // own - this is that entry point. FindUserByIdOrEmail itself stays private; only this
