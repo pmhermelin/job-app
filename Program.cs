@@ -25,9 +25,13 @@ namespace JobApp
         }
 
         // Consistent separator + title before each top-level menu screen.
+        // KAN-117 fix: this used to call SafeClear() itself, which ran on EVERY loop
+        // iteration - including the one right after an action just printed a
+        // success/error message, wiping it before it could ever be read. Clearing now
+        // happens only at real screen transitions (see the SafeClear() calls in Main()
+        // and RunLoggedInSession()), not on every redraw of the same menu.
         static void PrintHeader(string title)
         {
-            SafeClear();
             string border = new string('=', title.Length + 8);
             Console.WriteLine(border);
             Console.WriteLine($"==  {title}  ==");
@@ -59,6 +63,7 @@ namespace JobApp
             JobSystem system = new JobSystem();
             bool running = true;
 
+            SafeClear();
             while (running)
             {
                 PrintHeader("Job Listing Management System");
@@ -196,6 +201,9 @@ namespace JobApp
             bool isEmployer = loggedInUser.GetUserType() == "EMPLOYER";
             bool isAdmin = loggedInUser.GetUserType() == "ADMIN";
 
+            // No SafeClear() here: HandleLogin() just printed "Login successful!" and the
+            // account summary right before calling this method, and clearing immediately
+            // would erase that feedback before the user ever sees it.
             bool loggedIn = true;
             while (loggedIn)
             {
