@@ -240,7 +240,8 @@ namespace JobApp
             }
         }
 
-        // REQ-008 / KAN-12: capture a user id/email and a reason, call JobSystem.SuspendUser, display the result.
+        // REQ-008 / KAN-12: capture a user id/email, show who was found before acting (KAN-12 review -
+        // Zohar), then capture a reason and call JobSystem.SuspendUser.
         static void HandleSuspendUser(JobSystem system, User loggedInUser)
         {
             Console.WriteLine();
@@ -248,6 +249,14 @@ namespace JobApp
 
             Console.Write("User id or email: ");
             string identifier = Console.ReadLine();
+
+            User found = system.FindUserForAdmin(loggedInUser, identifier, out string lookupError);
+            if (found == null)
+            {
+                Console.WriteLine($"Suspend failed: {lookupError}");
+                return;
+            }
+            Console.WriteLine(found);
 
             Console.Write("Reason: ");
             string reason = Console.ReadLine();
@@ -263,7 +272,8 @@ namespace JobApp
             Console.WriteLine("User suspended successfully.");
         }
 
-        // REQ-008 / KAN-12: capture a user id/email and a reason, call JobSystem.UnsuspendUser, display the result.
+        // REQ-008 / KAN-12: capture a user id/email, show who was found before acting (KAN-12 review -
+        // Zohar), then capture a reason and call JobSystem.UnsuspendUser.
         static void HandleUnsuspendUser(JobSystem system, User loggedInUser)
         {
             Console.WriteLine();
@@ -271,6 +281,14 @@ namespace JobApp
 
             Console.Write("User id or email: ");
             string identifier = Console.ReadLine();
+
+            User found = system.FindUserForAdmin(loggedInUser, identifier, out string lookupError);
+            if (found == null)
+            {
+                Console.WriteLine($"Unsuspend failed: {lookupError}");
+                return;
+            }
+            Console.WriteLine(found);
 
             Console.Write("Reason: ");
             string reason = Console.ReadLine();

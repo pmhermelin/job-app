@@ -436,8 +436,28 @@ namespace JobApp
         // Helper for tests and for KAN-11/KAN-18 to inspect the log without exposing the array itself.
         public int GetAdminActionCount() => adminActionCount;
 
-        // Internal only - Program never needs to look a user up on its own, only through
-        // SuspendUser/UnsuspendUser, so this stays private (encapsulation, design doc section 3.1).
+        // KAN-12 review (Zohar): Program shows the found user's details/status before the admin
+        // confirms suspend/unsuspend, so it needs a permission-checked way to look one up on its
+        // own - this is that entry point. FindUserByIdOrEmail itself stays private; only this
+        // admin-only, read-only wrapper is exposed (encapsulation, design doc section 3.1).
+        public User FindUserForAdmin(User admin, string identifier, out string errorMessage)
+        {
+            errorMessage = "";
+
+            if (admin == null || admin.GetUserType() != "ADMIN")
+            {
+                errorMessage = "Only a system administrator can look up a user.";
+                return null;
+            }
+
+            User target = FindUserByIdOrEmail(identifier);
+            if (target == null)
+            {
+                errorMessage = "User not found.";
+            }
+            return target;
+        }
+
         private User FindUserByIdOrEmail(string identifier)
         {
             if (IsBlank(identifier))
