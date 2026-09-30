@@ -11,6 +11,7 @@ namespace JobApp
         private const int MaxCompanies = 100;
         private const int MaxJobs = 200;
         private const int MaxApplications = 500;
+        private const int MaxAdminActions = 300; // design doc section 3.3
 
         private User[] users;
         private int userCount;
@@ -23,6 +24,9 @@ namespace JobApp
 
         private Application[] applications;
         private int applicationCount;
+
+        private AdminAction[] adminActions;
+        private int adminActionCount;
 
         private int nextUserId;
         private int nextCompanyId;
@@ -42,6 +46,9 @@ namespace JobApp
 
             applications = new Application[MaxApplications];
             applicationCount = 0;
+
+            adminActions = new AdminAction[MaxAdminActions];
+            adminActionCount = 0;
 
             nextUserId = 1;
             nextCompanyId = 1;
@@ -376,6 +383,16 @@ namespace JobApp
                 return false;
             }
 
+            // KAN-116: found in KAN-12 self-review - a suspended employer is already locked out of
+            // managing their jobs (IsActiveEmployer blocks PublishJob/EditJob/CloseJob), but before
+            // this check their still-OPEN jobs kept accepting new applications. Same "suspended =
+            // frozen" principle, applied here too - existing applications are untouched either way.
+            if (job.GetEmployer() != null && job.GetEmployer().IsSuspended())
+            {
+                errorMessage = "Job not found or is not open for applications.";
+                return false;
+            }
+
             // Step 4: profile must exist and be complete.
             CandidateProfile profile = candidate.GetCandidateProfile();
             if (profile == null || !profile.IsComplete())
@@ -407,6 +424,145 @@ namespace JobApp
             applicationCount++;
             nextApplicationId++;
 
+            return true;
+        }
+
+        // ---------- REQ-008 / KAN-12: suspendUser / unsuspendUser ----------
+        // Logic per design doc section 6.10. Looks a user up by id (numeric) or by email,
+        // since the design doc allows either. Every successful suspend/unsuspend is logged
+        // as an AdminAction (design doc section 5.7) - this is also what first requires the
+        // AdminAction model to exist in the codebase (previously only KAN-11 needed it).
+
+        // Helper for tests and for KAN-11/KAN-18 to inspect the log without exposing the array itself.
+        public int GetAdminActionCount() => adminActionCount;
+
+        // Internal only - Program never needs to look a user up on its own, only through
+        // SuspendUser/UnsuspendUser, so this stays private (encapsulation, design doc section 3.1).
+        private User FindUserByIdOrEmail(string identifier)
+        {
+            if (IsBlank(identifier))
+            {
+                return null;
+            }
+
+            identifier = identifier.Trim();
+
+            if (int.TryParse(identifier, out int id))
+            {
+                for (int i = 0; i < userCount; i++)
+                {
+                    if (users[i].GetId() == id)
+                    {
+                        return users[i];
+                    }
+                }
+                return null;
+            }
+
+            for (int i = 0; i < userCount; i++)
+            {
+                if (users[i].GetEmail().Equals(identifier, StringComparison.OrdinalIgnoreCase))
+                {
+                    return users[i];
+                }
+            }
+            return null;
+        }
+
+        private void AddAdminAction(User admin, string actionType, string target, string reason)
+        {
+            // Capacity is checked by the caller before any state changes, so this never partially fails.
+            AdminAction action = new AdminAction(admin, actionType, target, reason);
+            adminActions[adminActionCount] = action;
+            adminActionCount++;
+        }
+
+        public bool SuspendUser(User admin, string userIdentifier, string reason, out string errorMessage)
+        {
+            errorMessage = "";
+
+            if (admin == null || admin.GetUserType() != "ADMIN")
+            {
+                errorMessage = "Only a system administrator can suspend a user.";
+                return false;
+            }
+
+            User target = FindUserByIdOrEmail(userIdentifier);
+            if (target == null)
+            {
+                errorMessage = "User not found.";
+                return false;
+            }
+
+            // The system administrator account can never be suspended (design doc section 6.10).
+            if (target.GetUserType() == "ADMIN")
+            {
+                errorMessage = "The system administrator account cannot be suspended.";
+                return false;
+            }
+
+            if (target.IsSuspended())
+            {
+                errorMessage = "This user is already suspended.";
+                return false;
+            }
+
+            reason = reason?.Trim();
+            if (IsBlank(reason))
+            {
+                errorMessage = "A reason is required to suspend a user.";
+                return false;
+            }
+
+            if (adminActionCount >= MaxAdminActions)
+            {
+                errorMessage = "The system is full, no more admin actions can be logged.";
+                return false;
+            }
+
+            target.SetSuspended(true);
+            AddAdminAction(admin, "SUSPEND", $"User #{target.GetId()} ({target.GetEmail()})", reason);
+            return true;
+        }
+
+        public bool UnsuspendUser(User admin, string userIdentifier, string reason, out string errorMessage)
+        {
+            errorMessage = "";
+
+            if (admin == null || admin.GetUserType() != "ADMIN")
+            {
+                errorMessage = "Only a system administrator can unsuspend a user.";
+                return false;
+            }
+
+            User target = FindUserByIdOrEmail(userIdentifier);
+            if (target == null)
+            {
+                errorMessage = "User not found.";
+                return false;
+            }
+
+            if (!target.IsSuspended())
+            {
+                errorMessage = "This user is not suspended.";
+                return false;
+            }
+
+            reason = reason?.Trim();
+            if (IsBlank(reason))
+            {
+                errorMessage = "A reason is required to unsuspend a user.";
+                return false;
+            }
+
+            if (adminActionCount >= MaxAdminActions)
+            {
+                errorMessage = "The system is full, no more admin actions can be logged.";
+                return false;
+            }
+
+            target.SetSuspended(false);
+            AddAdminAction(admin, "UNSUSPEND", $"User #{target.GetId()} ({target.GetEmail()})", reason);
             return true;
         }
 
