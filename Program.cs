@@ -143,6 +143,8 @@ namespace JobApp
         }
 
         // KAN-101 / KAN-102: each logged-in menu number identifies one action across all roles.
+        // KAN-15 / KAN-114: "5 - Report a job" fills the number that was left unused after the
+        // KAN-101/102 renumbering, so the menu has no more gaps.
         // loggedInUser is a local variable (not a field), so once this method returns
         // there is no way to reach a protected action without logging in again (T-13).
         static void RunLoggedInSession(JobSystem system, User loggedInUser)
@@ -163,6 +165,8 @@ namespace JobApp
                     Console.WriteLine("2 - Update my profile");
                     // REQ-004 / KAN-8: only job seekers may submit applications (design doc 4.3).
                     Console.WriteLine("3 - Apply to a job");
+                    // REQ-011 / KAN-15: only job seekers may report a job (design doc 4.3).
+                    Console.WriteLine("5 - Report a job");
                     Console.WriteLine("6 - Search open jobs");
                     Console.WriteLine("7 - My applications");
                 }
@@ -198,6 +202,9 @@ namespace JobApp
                         break;
                     case "3" when isCandidate:
                         HandleSubmitApplication(system, loggedInUser);
+                        break;
+                    case "5" when isCandidate:
+                        HandleReportJob(system, loggedInUser);
                         break;
                     case "6" when isCandidate:
                         HandleSearchJobs(system, loggedInUser);
@@ -372,6 +379,49 @@ namespace JobApp
             }
 
             Console.WriteLine("Application submitted successfully!");
+        }
+
+        // REQ-011 / KAN-15: list open jobs (same as HandleSubmitApplication), capture a job id and
+        // reason, call JobSystem.CreateReport, display the result.
+        // Note: CreateReport also allows reporting a CLOSED job (only REMOVED is blocked) - this list
+        // shows only OPEN jobs, same as everywhere else a candidate browses jobs (search/apply), so a
+        // CLOSED job can still be reported if its id is already known (e.g. from Application history).
+        static void HandleReportJob(JobSystem system, User loggedInUser)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Report a job --");
+
+            Job[] openJobs = system.GetOpenJobs(out int openCount);
+
+            if (openCount > 0)
+            {
+                for (int i = 0; i < openCount; i++)
+                {
+                    Console.WriteLine(openJobs[i]);
+                }
+            }
+
+            Console.Write("Job id to report: ");
+            string input = Console.ReadLine();
+
+            if (!int.TryParse(input, out int jobId))
+            {
+                Console.WriteLine("Invalid job id.");
+                return;
+            }
+
+            Console.Write("Reason: ");
+            string reason = Console.ReadLine();
+
+            bool success = system.CreateReport(loggedInUser, jobId, reason, out string errorMessage);
+
+            if (!success)
+            {
+                Console.WriteLine($"Report failed: {errorMessage}");
+                return;
+            }
+
+            Console.WriteLine("Report submitted successfully. Thank you - our team will review it.");
         }
 
         // REQ-003 / KAN-7: Enter skips any filter; matching remains in JobSystem.

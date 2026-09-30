@@ -11,6 +11,7 @@ namespace JobApp
         private const int MaxCompanies = 100;
         private const int MaxJobs = 200;
         private const int MaxApplications = 500;
+        private const int MaxReports = 100; // design doc section 3.3
         private const int MaxAdminActions = 300; // design doc section 3.3
 
         private User[] users;
@@ -25,6 +26,8 @@ namespace JobApp
         private Application[] applications;
         private int applicationCount;
 
+        private Report[] reports;
+        private int reportCount;
         private AdminAction[] adminActions;
         private int adminActionCount;
 
@@ -32,6 +35,7 @@ namespace JobApp
         private int nextCompanyId;
         private int nextJobId;
         private int nextApplicationId;
+        private int nextReportId;
 
         public JobSystem()
         {
@@ -47,6 +51,8 @@ namespace JobApp
             applications = new Application[MaxApplications];
             applicationCount = 0;
 
+            reports = new Report[MaxReports];
+            reportCount = 0;
             adminActions = new AdminAction[MaxAdminActions];
             adminActionCount = 0;
 
@@ -54,6 +60,7 @@ namespace JobApp
             nextCompanyId = 1;
             nextJobId = 1;
             nextApplicationId = 1;
+            nextReportId = 1;
 
             SeedAdmin();
         }
@@ -427,6 +434,72 @@ namespace JobApp
             return true;
         }
 
+        // ---------- REQ-011 / KAN-15: createReport ----------
+        // A job seeker reports an existing job with a reason. One report per candidate per job
+        // (design doc section 16), capacity is checked, and the report always starts as NEW
+        // (handling a report - REQ-007 / KAN-11 - is a separate story/branch).
+        // errorMessage is returned via out so Program can show a clear message without throwing exceptions.
+        public bool CreateReport(User candidate, int jobId, string reason, out string errorMessage)
+        {
+            errorMessage = "";
+
+            if (candidate == null || candidate.GetUserType() != "CANDIDATE")
+            {
+                errorMessage = "Only job seekers can report a job.";
+                return false;
+            }
+
+            if (candidate.IsSuspended())
+            {
+                errorMessage = "This account has been suspended. Contact the system administrator.";
+                return false;
+            }
+
+            // A job that was already administratively removed can no longer be reported (nothing left to act on).
+            Job job = FindJobById(jobId);
+            if (job == null || job.GetStatus() == "REMOVED")
+            {
+                errorMessage = "Job not found.";
+                return false;
+            }
+
+            reason = reason?.Trim();
+            if (IsBlank(reason))
+            {
+                errorMessage = "A reason is required to report a job.";
+                return false;
+            }
+
+            // KAN-115: design doc section 16 ("דיווח כפול") - one report per candidate per job,
+            // period. Mirrors the duplicate-application check in SubmitApplication, but unlike
+            // that check this one is permanent (not conditioned on the report's status).
+            for (int i = 0; i < reportCount; i++)
+            {
+                if (reports[i].GetReporter() == candidate && reports[i].GetJob() == job)
+                {
+                    errorMessage = "You have already reported this job.";
+                    return false;
+                }
+            }
+
+            // Capacity + id-overflow guard, consistent with PublishJob's nextJobId check (section 6.5).
+            if (reportCount >= MaxReports || nextReportId == int.MaxValue)
+            {
+                errorMessage = "The system is full, no more reports can be added.";
+                return false;
+            }
+
+            Report report = new Report(nextReportId, candidate, job, reason);
+            reports[reportCount] = report;
+            reportCount++;
+            nextReportId++;
+
+            return true;
+        }
+
+        // Helper for tests: verify reportCount is unchanged after a failed report.
+        public int GetReportCount() => reportCount;
+
         // ---------- REQ-008 / KAN-12: suspendUser / unsuspendUser ----------
         // Logic per design doc section 6.10. Looks a user up by id (numeric) or by email,
         // since the design doc allows either. Every successful suspend/unsuspend is logged
@@ -585,6 +658,7 @@ namespace JobApp
             AddAdminAction(admin, "UNSUSPEND", $"User #{target.GetId()} ({target.GetEmail()})", reason);
             return true;
         }
+
 
         // ---------- REQ-005 / KAN-9: publish, edit and close jobs ----------
         public bool PublishJob(User employer, string title, string description,
