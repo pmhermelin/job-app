@@ -7,6 +7,48 @@ namespace JobApp
     // Program does not access the data arrays directly and does not change data - display and navigation only.
     class Program
     {
+        // KAN-113: small visual/UX helpers (cosmetic only - no business logic changes).
+        // Console.Clear() throws IOException when output isn't a real interactive console
+        // (e.g. redirected for automated testing), so SafeClear swallows that case instead
+        // of crashing the whole program.
+        static void SafeClear()
+        {
+            try
+            {
+                if (!Console.IsOutputRedirected) Console.Clear();
+            }
+            catch (System.IO.IOException)
+            {
+                // Not an interactive console - nothing to clear.
+            }
+        }
+
+        // Consistent separator + title before each top-level menu screen.
+        static void PrintHeader(string title)
+        {
+            SafeClear();
+            string border = new string('=', title.Length + 8);
+            Console.WriteLine(border);
+            Console.WriteLine($"==  {title}  ==");
+            Console.WriteLine(border);
+        }
+
+        static void WriteSuccess(string message)
+        {
+            ConsoleColor previous = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine(message);
+            Console.ForegroundColor = previous;
+        }
+
+        static void WriteError(string message)
+        {
+            ConsoleColor previous = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(message);
+            Console.ForegroundColor = previous;
+        }
+
         static void Main(string[] args)
         {
             // Force UTF-8 output/input so special characters display correctly across terminals.
@@ -18,12 +60,12 @@ namespace JobApp
 
             while (running)
             {
-                Console.WriteLine();
-                Console.WriteLine("==== Job Listing Management System ====");
+                PrintHeader("Job Listing Management System");
                 Console.WriteLine("1 - Register");
                 Console.WriteLine("2 - Login");
                 Console.WriteLine("3 - Search open jobs");
                 Console.WriteLine("4 - Exit");
+                Console.WriteLine();
                 Console.Write("Choice: ");
 
                 string choice = Console.ReadLine();
@@ -41,11 +83,11 @@ namespace JobApp
                         break;
                     case "4":
                         running = false;
-                        Console.WriteLine("Goodbye!");
+                        WriteSuccess("Goodbye!");
                         break;
                     default:
                         // Invalid choice (including non-numeric text) - message and back to menu, no crash (T-12).
-                        Console.WriteLine("Invalid choice, please try again.");
+                        WriteError("Invalid choice, please try again.");
                         break;
                 }
             }
@@ -104,11 +146,11 @@ namespace JobApp
 
             if (newUser == null)
             {
-                Console.WriteLine($"Registration failed: {errorMessage}");
+                WriteError($"Registration failed: {errorMessage}");
             }
             else
             {
-                Console.WriteLine("Registration successful!");
+                WriteSuccess("Registration successful!");
                 Console.WriteLine(newUser);
             }
         }
@@ -129,11 +171,11 @@ namespace JobApp
 
             if (loggedInUser == null)
             {
-                Console.WriteLine($"Login failed: {errorMessage}");
+                WriteError($"Login failed: {errorMessage}");
                 return;
             }
 
-            Console.WriteLine("Login successful!");
+            WriteSuccess("Login successful!");
             Console.WriteLine(loggedInUser);
 
             // Role-specific menus are implemented incrementally: candidates can now update their
@@ -156,8 +198,7 @@ namespace JobApp
             bool loggedIn = true;
             while (loggedIn)
             {
-                Console.WriteLine();
-                Console.WriteLine($"==== Logged in as {loggedInUser.GetName()} ({loggedInUser.GetUserType()}) ====");
+                PrintHeader($"Logged in as {loggedInUser.GetName()} ({loggedInUser.GetUserType()})");
                 Console.WriteLine("1 - View my account info");
                 if (isCandidate)
                 {
@@ -191,6 +232,7 @@ namespace JobApp
                     Console.WriteLine("17 - Handle a report");
                 }
                 Console.WriteLine("4 - Logout");
+                Console.WriteLine();
                 Console.Write("Choice: ");
 
                 string choice = Console.ReadLine();
@@ -250,7 +292,7 @@ namespace JobApp
                         HandleLogout(loggedInUser);
                         break;
                     default:
-                        Console.WriteLine("Invalid choice, please try again.");
+                        WriteError("Invalid choice, please try again.");
                         break;
                 }
             }
@@ -281,11 +323,11 @@ namespace JobApp
 
             if (!success)
             {
-                Console.WriteLine($"Suspend failed: {errorMessage}");
+                WriteError($"Suspend failed: {errorMessage}");
                 return;
             }
 
-            Console.WriteLine("User suspended successfully.");
+            WriteSuccess("User suspended successfully.");
         }
 
         // REQ-008 / KAN-12: capture a user id/email, show who was found before acting (KAN-12 review -
@@ -313,11 +355,11 @@ namespace JobApp
 
             if (!success)
             {
-                Console.WriteLine($"Unsuspend failed: {errorMessage}");
+                WriteError($"Unsuspend failed: {errorMessage}");
                 return;
             }
 
-            Console.WriteLine("User unsuspended successfully.");
+            WriteSuccess("User unsuspended successfully.");
         }
 
         // REQ-007 / KAN-11: capture a job id, show the reports already linked to it (design doc
@@ -361,11 +403,11 @@ namespace JobApp
 
             if (!success)
             {
-                Console.WriteLine($"Remove failed: {errorMessage}");
+                WriteError($"Remove failed: {errorMessage}");
                 return;
             }
 
-            Console.WriteLine("Job removed successfully. Any open reports for it were marked as handled.");
+            WriteSuccess("Job removed successfully. Any open reports for it were marked as handled.");
         }
 
         // REQ-007 (completes REQ-011) / KAN-11: list NEW reports (design doc section 6.17, step
@@ -411,11 +453,11 @@ namespace JobApp
 
             if (!success)
             {
-                Console.WriteLine($"Handle failed: {errorMessage}");
+                WriteError($"Handle failed: {errorMessage}");
                 return;
             }
 
-            Console.WriteLine(removeJobToo
+            WriteSuccess(removeJobToo
                 ? "Report handled and job removed successfully."
                 : "Report handled successfully.");
         }
@@ -443,11 +485,11 @@ namespace JobApp
 
             if (!success)
             {
-                Console.WriteLine($"Profile update failed: {errorMessage}");
+                WriteError($"Profile update failed: {errorMessage}");
                 return;
             }
 
-            Console.WriteLine("Profile updated successfully!");
+            WriteSuccess("Profile updated successfully!");
             Console.WriteLine(loggedInUser.GetCandidateProfile());
         }
 
@@ -483,11 +525,11 @@ namespace JobApp
 
             if (!success)
             {
-                Console.WriteLine($"Application failed: {errorMessage}");
+                WriteError($"Application failed: {errorMessage}");
                 return;
             }
 
-            Console.WriteLine("Application submitted successfully!");
+            WriteSuccess("Application submitted successfully!");
         }
 
         // REQ-011 / KAN-15: list open jobs (same as HandleSubmitApplication), capture a job id and
@@ -526,11 +568,11 @@ namespace JobApp
 
             if (!success)
             {
-                Console.WriteLine($"Report failed: {errorMessage}");
+                WriteError($"Report failed: {errorMessage}");
                 return;
             }
 
-            Console.WriteLine("Report submitted successfully. Thank you - our team will review it.");
+            WriteSuccess("Report submitted successfully. Thank you - our team will review it.");
         }
 
         // REQ-003 / KAN-7: Enter skips any filter; matching remains in JobSystem.
@@ -613,9 +655,9 @@ namespace JobApp
             if (Console.ReadLine() == "1")
             {
                 if (system.SubmitApplication(viewer, jobId, out string errorMessage))
-                    Console.WriteLine("Application submitted successfully!");
+                    WriteSuccess("Application submitted successfully!");
                 else
-                    Console.WriteLine($"Application failed: {errorMessage}");
+                    WriteError($"Application failed: {errorMessage}");
             }
         }
 
@@ -666,9 +708,9 @@ namespace JobApp
                 default: status = ""; break;
             }
             if (system.UpdateApplicationStatus(employer, applicationId, status, out string errorMessage))
-                Console.WriteLine("Application status updated.");
+                WriteSuccess("Application status updated.");
             else
-                Console.WriteLine($"Update failed: {errorMessage}");
+                WriteError($"Update failed: {errorMessage}");
         }
 
         static void HandleMyApplications(JobSystem system, User candidate)
@@ -723,7 +765,7 @@ namespace JobApp
                 case "2": HandleEditJob(system, employer, jobId); break;
                 case "3": HandleCloseJob(system, employer, jobId); break;
                 default:
-                    Console.WriteLine("Invalid choice, please try again.");
+                    WriteError("Invalid choice, please try again.");
                     break;
             }
         }
@@ -736,9 +778,9 @@ namespace JobApp
                            out string location, out string jobType);
             if (system.PublishJob(employer, title, description, field, location,
                                   jobType, out int createdJobId, out string errorMessage))
-                Console.WriteLine($"Job #{createdJobId} published successfully.");
+                WriteSuccess($"Job #{createdJobId} published successfully.");
             else
-                Console.WriteLine($"Publishing failed: {errorMessage}");
+                WriteError($"Publishing failed: {errorMessage}");
         }
 
         static void HandleEditJob(JobSystem system, User employer)
@@ -761,9 +803,9 @@ namespace JobApp
                            out string location, out string jobType);
             if (system.EditJob(employer, jobId, title, description, field,
                                location, jobType, out string errorMessage))
-                Console.WriteLine("Job updated successfully.");
+                WriteSuccess("Job updated successfully.");
             else
-                Console.WriteLine($"Update failed: {errorMessage}");
+                WriteError($"Update failed: {errorMessage}");
         }
 
         static void HandleCloseJob(JobSystem system, User employer)
@@ -783,9 +825,9 @@ namespace JobApp
         {
 
             if (system.CloseJob(employer, jobId, out string errorMessage))
-                Console.WriteLine("Job closed successfully.");
+                WriteSuccess("Job closed successfully.");
             else
-                Console.WriteLine($"Closing failed: {errorMessage}");
+                WriteError($"Closing failed: {errorMessage}");
         }
 
         static void ReadJobDetails(out string title, out string description,
