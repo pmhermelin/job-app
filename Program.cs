@@ -142,7 +142,7 @@ namespace JobApp
             RunLoggedInSession(system, loggedInUser);
         }
 
-        // Logged-in loop: only two actions available until role-specific menus exist.
+        // KAN-101 / KAN-102: each logged-in menu number identifies one action across all roles.
         // loggedInUser is a local variable (not a field), so once this method returns
         // there is no way to reach a protected action without logging in again (T-13).
         static void RunLoggedInSession(JobSystem system, User loggedInUser)
@@ -167,12 +167,12 @@ namespace JobApp
                 }
                 if (isEmployer)
                 {
-                    Console.WriteLine("2 - Publish a job");
-                    Console.WriteLine("3 - Edit a job");
-                    Console.WriteLine("5 - Close a job");
-                    Console.WriteLine("6 - My jobs");
-                    Console.WriteLine("7 - View applicants for a job");
-                    Console.WriteLine("8 - Update application status");
+                    Console.WriteLine("8 - Publish a job");
+                    Console.WriteLine("9 - Edit a job");
+                    Console.WriteLine("10 - Close a job");
+                    Console.WriteLine("11 - My jobs");
+                    Console.WriteLine("12 - View applicants for a job");
+                    Console.WriteLine("13 - Update application status");
                 }
                 Console.WriteLine("4 - Logout");
                 Console.Write("Choice: ");
@@ -184,65 +184,39 @@ namespace JobApp
                     case "1":
                         Console.WriteLine(loggedInUser);
                         break;
-                    case "2":
-                        if (isCandidate)
-                        {
-                            HandleUpdateCandidateProfile(system, loggedInUser);
-                        }
-                        else if (isEmployer)
-                        {
-                            HandlePublishJob(system, loggedInUser);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid choice, please try again.");
-                        }
+                    case "2" when isCandidate:
+                        HandleUpdateCandidateProfile(system, loggedInUser);
                         break;
-                    case "3":
-                        if (isCandidate)
-                        {
-                            HandleSubmitApplication(system, loggedInUser);
-                        }
-                        else if (isEmployer)
-                        {
-                            HandleEditJob(system, loggedInUser);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid choice, please try again.");
-                        }
+                    case "3" when isCandidate:
+                        HandleSubmitApplication(system, loggedInUser);
+                        break;
+                    case "6" when isCandidate:
+                        HandleSearchJobs(system, loggedInUser);
+                        break;
+                    case "7" when isCandidate:
+                        HandleMyApplications(system, loggedInUser);
+                        break;
+                    case "8" when isEmployer:
+                        HandlePublishJob(system, loggedInUser);
+                        break;
+                    case "9" when isEmployer:
+                        HandleEditJob(system, loggedInUser);
+                        break;
+                    case "10" when isEmployer:
+                        HandleCloseJob(system, loggedInUser);
+                        break;
+                    case "11" when isEmployer:
+                        HandleEmployerJobs(system, loggedInUser);
+                        break;
+                    case "12" when isEmployer:
+                        HandleApplicants(system, loggedInUser);
+                        break;
+                    case "13" when isEmployer:
+                        HandleApplicationStatus(system, loggedInUser);
                         break;
                     case "4":
                         loggedIn = false;
                         HandleLogout(loggedInUser);
-                        break;
-                    case "5":
-                        if (isEmployer)
-                            HandleCloseJob(system, loggedInUser);
-                        else
-                            Console.WriteLine("Invalid choice, please try again.");
-                        break;
-                    case "6":
-                        if (isCandidate)
-                            HandleSearchJobs(system, loggedInUser);
-                        else if (isEmployer)
-                            HandleEmployerJobs(system, loggedInUser);
-                        else
-                            Console.WriteLine("Invalid choice, please try again.");
-                        break;
-                    case "7":
-                        if (isCandidate)
-                            HandleMyApplications(system, loggedInUser);
-                        else if (isEmployer)
-                            HandleApplicants(system, loggedInUser);
-                        else
-                            Console.WriteLine("Invalid choice, please try again.");
-                        break;
-                    case "8":
-                        if (isEmployer)
-                            HandleApplicationStatus(system, loggedInUser);
-                        else
-                            Console.WriteLine("Invalid choice, please try again.");
                         break;
                     default:
                         Console.WriteLine("Invalid choice, please try again.");
