@@ -325,6 +325,23 @@ namespace JobApp
                 Console.WriteLine("Invalid job id.");
                 return;
             }
+            // KAN-109: only allow a job selected from the displayed search results.
+            bool listedResult = false;
+            for (int i = 0; i < count; i++)
+            {
+                if (results[i].GetId() == jobId)
+                {
+                    listedResult = true;
+                    break;
+                }
+            }
+
+            if (!listedResult)
+            {
+                Console.WriteLine("Job not found in the displayed search results.");
+                return;
+            }
+
             HandleViewJobDetails(system, viewer, jobId);
         }
 
@@ -459,11 +476,17 @@ namespace JobApp
             }
 
             Console.Write("1 - View details, 2 - Edit, 3 - Close, Enter - Return: ");
-            switch (Console.ReadLine())
+            string manageChoice = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(manageChoice)) return;
+
+            switch (manageChoice)
             {
                 case "1": HandleViewJobDetails(system, employer, jobId); break;
                 case "2": HandleEditJob(system, employer, jobId); break;
                 case "3": HandleCloseJob(system, employer, jobId); break;
+                default:
+                    Console.WriteLine("Invalid choice, please try again.");
+                    break;
             }
         }
 
