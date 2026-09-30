@@ -68,6 +68,16 @@ namespace JobApp.Models
             return true;
         }
 
+        // REQ-007 / KAN-11: admin takes a job out of circulation (design doc section 6.9).
+        // Unlike Close(), this works from any non-REMOVED status (OPEN or CLOSED) - a misleading
+        // or bad-faith job can be reported and removed regardless of whether it was closed first.
+        public bool Remove()
+        {
+            if (status == "REMOVED") return false;
+            status = "REMOVED";
+            return true;
+        }
+
         public static bool IsValidJobType(string value) =>
             value == "Full-time" || value == "Part-time" ||
             value == "Temporary" || value == "Internship";

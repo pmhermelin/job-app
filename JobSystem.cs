@@ -659,6 +659,175 @@ namespace JobApp
             return true;
         }
 
+        // ---------- REQ-007 / KAN-11: removeJob / handleReport ----------
+        // Design doc sections 6.9 and 6.17. Both actions are ADMIN-only, both log an AdminAction
+        // (REMOVE_JOB / HANDLE_REPORT respectively - section 5.7), and removing a job always
+        // closes out every still-NEW report linked to it (section 6.9, step 6), whether the job
+        // was removed directly or as part of handling one particular report. Both reuse
+        // AddAdminAction and the capacity/permission patterns already established by KAN-12 above.
+
+        private Report FindReportById(int reportId)
+        {
+            for (int i = 0; i < reportCount; i++)
+            {
+                if (reports[i].GetId() == reportId)
+                {
+                    return reports[i];
+                }
+            }
+            return null;
+        }
+
+        // For Program to show the reports linked to a job before the admin decides whether to
+        // remove it (design doc section 6.9, step 2).
+        public Report[] GetReportsForJob(User admin, int jobId, out int count, out string errorMessage)
+        {
+            count = 0;
+            errorMessage = "";
+
+            if (admin == null || admin.GetUserType() != "ADMIN")
+            {
+                errorMessage = "Only a system administrator can view reports.";
+                return null;
+            }
+
+            Report[] results = new Report[reportCount];
+            for (int i = 0; i < reportCount; i++)
+            {
+                if (reports[i].GetJob() != null && reports[i].GetJob().GetId() == jobId)
+                {
+                    results[count] = reports[i];
+                    count++;
+                }
+            }
+            return results;
+        }
+
+        // For Program to let the admin pick a report to handle (design doc section 6.17, step 1).
+        public Report[] GetNewReports(User admin, out int count, out string errorMessage)
+        {
+            count = 0;
+            errorMessage = "";
+
+            if (admin == null || admin.GetUserType() != "ADMIN")
+            {
+                errorMessage = "Only a system administrator can view reports.";
+                return null;
+            }
+
+            Report[] results = new Report[reportCount];
+            for (int i = 0; i < reportCount; i++)
+            {
+                if (reports[i].GetStatus() == "NEW")
+                {
+                    results[count] = reports[i];
+                    count++;
+                }
+            }
+            return results;
+        }
+
+        public bool RemoveJob(User admin, int jobId, string reason, out string errorMessage)
+        {
+            errorMessage = "";
+
+            if (admin == null || admin.GetUserType() != "ADMIN")
+            {
+                errorMessage = "Only a system administrator can remove a job.";
+                return false;
+            }
+
+            Job job = FindJobById(jobId);
+            if (job == null || job.GetStatus() == "REMOVED")
+            {
+                errorMessage = "Job not found or already removed.";
+                return false;
+            }
+
+            reason = reason?.Trim();
+            if (IsBlank(reason))
+            {
+                errorMessage = "A reason is required to remove a job.";
+                return false;
+            }
+
+            if (adminActionCount >= MaxAdminActions)
+            {
+                errorMessage = "The system is full, no more admin actions can be logged.";
+                return false;
+            }
+
+            RemoveJobInternal(admin, job, reason);
+            return true;
+        }
+
+        // Shared by RemoveJob and HandleReport (when the admin also chooses to remove the job
+        // while handling a report) - design doc section 6.9, steps 4-6. The caller must already
+        // have validated ADMIN permission, the job, the reason, and capacity for this AdminAction.
+        private void RemoveJobInternal(User admin, Job job, string reason)
+        {
+            job.Remove();
+            AddAdminAction(admin, "REMOVE_JOB", $"Job #{job.GetId()} ({job.GetTitle()})", reason);
+
+            for (int i = 0; i < reportCount; i++)
+            {
+                if (reports[i].GetJob() == job && reports[i].GetStatus() == "NEW")
+                {
+                    reports[i].SetStatus("HANDLED");
+                }
+            }
+        }
+
+        // removeJobToo lets the admin also remove the reported job in the same action (design doc
+        // section 6.17, step 3: "מסומן כטופל בלבד או הסרת המשרה"). When true, this logs a second
+        // AdminAction (REMOVE_JOB) in addition to HANDLE_REPORT (step 5), and both must fit within
+        // capacity before either is written - no partial logging.
+        public bool HandleReport(User admin, int reportId, bool removeJobToo, string reason, out string errorMessage)
+        {
+            errorMessage = "";
+
+            if (admin == null || admin.GetUserType() != "ADMIN")
+            {
+                errorMessage = "Only a system administrator can handle a report.";
+                return false;
+            }
+
+            Report report = FindReportById(reportId);
+            if (report == null || report.GetStatus() != "NEW")
+            {
+                errorMessage = "Report not found or already handled.";
+                return false;
+            }
+
+            reason = reason?.Trim();
+            if (IsBlank(reason))
+            {
+                errorMessage = "A reason is required to handle a report.";
+                return false;
+            }
+
+            Job job = report.GetJob();
+            bool willRemoveJob = removeJobToo && job != null && job.GetStatus() != "REMOVED";
+            int requiredActions = willRemoveJob ? 2 : 1;
+
+            if (adminActionCount + requiredActions > MaxAdminActions)
+            {
+                errorMessage = "The system is full, no more admin actions can be logged.";
+                return false;
+            }
+
+            report.SetStatus("HANDLED");
+            AddAdminAction(admin, "HANDLE_REPORT",
+                $"Report #{report.GetId()} (Job #{(job != null ? job.GetId().ToString() : "?")})", reason);
+
+            if (willRemoveJob)
+            {
+                RemoveJobInternal(admin, job, reason);
+            }
+
+            return true;
+        }
+
 
         // ---------- REQ-005 / KAN-9: publish, edit and close jobs ----------
         public bool PublishJob(User employer, string title, string description,
@@ -869,6 +1038,17 @@ namespace JobApp
                     errorMessage = "Application not found or it does not belong to your job.";
                     return false;
                 }
+
+                // KAN-11 self-review: once an admin removes a job (REQ-007, section 6.9) it is
+                // no longer legitimate - the employer should not be able to keep moving its
+                // applicants forward (e.g. to ACCEPTED) as if nothing happened. CLOSED jobs are
+                // unaffected: managing applicants after a normal close is expected behavior.
+                if (application.GetJob().GetStatus() == "REMOVED")
+                {
+                    errorMessage = "This job was removed by an administrator; its applications can no longer be updated.";
+                    return false;
+                }
+
                 application.SetStatus(newStatus);
                 return true;
             }

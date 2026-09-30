@@ -186,6 +186,9 @@ namespace JobApp
                     // teammate's still-unmerged branch) so the two branches don't collide on a number.
                     Console.WriteLine("14 - Suspend a user");
                     Console.WriteLine("15 - Unsuspend a user");
+                    // REQ-007 / KAN-11: only a system admin may remove a job or handle a report (design doc 4.3).
+                    Console.WriteLine("16 - Remove a job");
+                    Console.WriteLine("17 - Handle a report");
                 }
                 Console.WriteLine("4 - Logout");
                 Console.Write("Choice: ");
@@ -235,6 +238,12 @@ namespace JobApp
                         break;
                     case "15" when isAdmin:
                         HandleUnsuspendUser(system, loggedInUser);
+                        break;
+                    case "16" when isAdmin:
+                        HandleRemoveJob(system, loggedInUser);
+                        break;
+                    case "17" when isAdmin:
+                        HandleReportsByAdmin(system, loggedInUser);
                         break;
                     case "4":
                         loggedIn = false;
@@ -309,6 +318,106 @@ namespace JobApp
             }
 
             Console.WriteLine("User unsuspended successfully.");
+        }
+
+        // REQ-007 / KAN-11: capture a job id, show the reports already linked to it (design doc
+        // section 6.9, step 2), then capture a reason and call JobSystem.RemoveJob.
+        static void HandleRemoveJob(JobSystem system, User loggedInUser)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Remove a job --");
+
+            Console.Write("Job id: ");
+            if (!int.TryParse(Console.ReadLine(), out int jobId))
+            {
+                Console.WriteLine("Invalid job id.");
+                return;
+            }
+
+            Report[] linkedReports = system.GetReportsForJob(loggedInUser, jobId, out int linkedCount, out string lookupError);
+            if (linkedReports == null)
+            {
+                Console.WriteLine($"Remove failed: {lookupError}");
+                return;
+            }
+
+            if (linkedCount > 0)
+            {
+                Console.WriteLine("Reports linked to this job:");
+                for (int i = 0; i < linkedCount; i++)
+                {
+                    Console.WriteLine(linkedReports[i]);
+                }
+            }
+            else
+            {
+                Console.WriteLine("No reports are linked to this job.");
+            }
+
+            Console.Write("Reason: ");
+            string reason = Console.ReadLine();
+
+            bool success = system.RemoveJob(loggedInUser, jobId, reason, out string errorMessage);
+
+            if (!success)
+            {
+                Console.WriteLine($"Remove failed: {errorMessage}");
+                return;
+            }
+
+            Console.WriteLine("Job removed successfully. Any open reports for it were marked as handled.");
+        }
+
+        // REQ-007 (completes REQ-011) / KAN-11: list NEW reports (design doc section 6.17, step
+        // 1), let the admin pick one, then decide whether to also remove the reported job.
+        static void HandleReportsByAdmin(JobSystem system, User loggedInUser)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Handle a report --");
+
+            Report[] newReports = system.GetNewReports(loggedInUser, out int count, out string lookupError);
+            if (newReports == null)
+            {
+                Console.WriteLine($"Handle failed: {lookupError}");
+                return;
+            }
+
+            if (count == 0)
+            {
+                Console.WriteLine("There are no new reports to handle.");
+                return;
+            }
+
+            Console.WriteLine("New reports:");
+            for (int i = 0; i < count; i++)
+            {
+                Console.WriteLine(newReports[i]);
+            }
+
+            Console.Write("Report id to handle: ");
+            if (!int.TryParse(Console.ReadLine(), out int reportId))
+            {
+                Console.WriteLine("Invalid report id.");
+                return;
+            }
+
+            Console.Write("Also remove the reported job? (y/n): ");
+            bool removeJobToo = (Console.ReadLine() ?? "").Trim().Equals("y", StringComparison.OrdinalIgnoreCase);
+
+            Console.Write("Reason: ");
+            string reason = Console.ReadLine();
+
+            bool success = system.HandleReport(loggedInUser, reportId, removeJobToo, reason, out string errorMessage);
+
+            if (!success)
+            {
+                Console.WriteLine($"Handle failed: {errorMessage}");
+                return;
+            }
+
+            Console.WriteLine(removeJobToo
+                ? "Report handled and job removed successfully."
+                : "Report handled successfully.");
         }
 
         // REQ-009 / KAN-13: capture profile details, call JobSystem.UpdateCandidateProfile, display the result.
