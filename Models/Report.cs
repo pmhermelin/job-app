@@ -40,8 +40,11 @@ namespace JobApp.Models
 
         public override string ToString()
         {
-            string jobTitle = job != null ? job.GetTitle() : "";
-            return $"Report #{id} | {jobTitle} | {GetReportDate()} | {status} | Reason: {reason}";
+            // KAN-11 self-review: job id is included (not just title) so an admin handling a
+            // report can act on JobSystem.RemoveJob(jobId, ...) directly from what's printed here,
+            // without a separate lookup step.
+            string jobLabel = job != null ? $"Job #{job.GetId()} ({job.GetTitle()})" : "Job not found";
+            return $"Report #{id} | {jobLabel} | {GetReportDate()} | {status} | Reason: {reason}";
         }
     }
 }
