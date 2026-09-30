@@ -9,7 +9,10 @@ namespace JobApp.Models
         private User reporter;
         private Job job;
         private string reason;
-        private string reportDate;
+        // Design doc section 16 ("פורמט תאריך"): "DateTime פנימי" - kept as an actual DateTime
+        // here (not a pre-formatted string), so GetReportDate() below can format it to the
+        // agreed dd/MM/yyyy HH:mm display format, consistent with Application and AdminAction.
+        private DateTime reportDate;
         private string status; // NEW / HANDLED (design doc section 5.6) - handling a report is REQ-007 / KAN-11
 
         // A new report always gets NEW status and the current date/time (mirrors Application - design doc 5.5).
@@ -19,7 +22,7 @@ namespace JobApp.Models
             this.reporter = reporter;
             this.job = job;
             this.reason = reason;
-            this.reportDate = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+            this.reportDate = DateTime.Now;
             this.status = "NEW";
         }
 
@@ -27,7 +30,9 @@ namespace JobApp.Models
         public User GetReporter() => reporter;
         public Job GetJob() => job;
         public string GetReason() => reason;
-        public string GetReportDate() => reportDate;
+
+        // Design doc section 16 display format: dd/MM/yyyy HH:mm.
+        public string GetReportDate() => reportDate.ToString("dd/MM/yyyy HH:mm");
         public string GetStatus() => status;
 
         // Changed only after validation in JobSystem (REQ-007 / KAN-11 - a teammate's story).
@@ -36,7 +41,7 @@ namespace JobApp.Models
         public override string ToString()
         {
             string jobTitle = job != null ? job.GetTitle() : "";
-            return $"Report #{id} | {jobTitle} | {reportDate} | {status} | Reason: {reason}";
+            return $"Report #{id} | {jobTitle} | {GetReportDate()} | {status} | Reason: {reason}";
         }
     }
 }

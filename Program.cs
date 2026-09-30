@@ -151,6 +151,7 @@ namespace JobApp
         {
             bool isCandidate = loggedInUser.GetUserType() == "CANDIDATE";
             bool isEmployer = loggedInUser.GetUserType() == "EMPLOYER";
+            bool isAdmin = loggedInUser.GetUserType() == "ADMIN";
 
             bool loggedIn = true;
             while (loggedIn)
@@ -177,6 +178,14 @@ namespace JobApp
                     Console.WriteLine("11 - My jobs");
                     Console.WriteLine("12 - View applicants for a job");
                     Console.WriteLine("13 - Update application status");
+                }
+                if (isAdmin)
+                {
+                    // REQ-008 / KAN-12: only a system admin may suspend/unsuspend a user (design doc 4.3).
+                    // Numbered 14/15 (not 5) to leave "5" free for REQ-011/KAN-15 (report a job, a
+                    // teammate's still-unmerged branch) so the two branches don't collide on a number.
+                    Console.WriteLine("14 - Suspend a user");
+                    Console.WriteLine("15 - Unsuspend a user");
                 }
                 Console.WriteLine("4 - Logout");
                 Console.Write("Choice: ");
@@ -221,6 +230,12 @@ namespace JobApp
                     case "13" when isEmployer:
                         HandleApplicationStatus(system, loggedInUser);
                         break;
+                    case "14" when isAdmin:
+                        HandleSuspendUser(system, loggedInUser);
+                        break;
+                    case "15" when isAdmin:
+                        HandleUnsuspendUser(system, loggedInUser);
+                        break;
                     case "4":
                         loggedIn = false;
                         HandleLogout(loggedInUser);
@@ -230,6 +245,70 @@ namespace JobApp
                         break;
                 }
             }
+        }
+
+        // REQ-008 / KAN-12: capture a user id/email, show who was found before acting (KAN-12 review -
+        // Zohar), then capture a reason and call JobSystem.SuspendUser.
+        static void HandleSuspendUser(JobSystem system, User loggedInUser)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Suspend a user --");
+
+            Console.Write("User id or email: ");
+            string identifier = Console.ReadLine();
+
+            User found = system.FindUserForAdmin(loggedInUser, identifier, out string lookupError);
+            if (found == null)
+            {
+                Console.WriteLine($"Suspend failed: {lookupError}");
+                return;
+            }
+            Console.WriteLine(found);
+
+            Console.Write("Reason: ");
+            string reason = Console.ReadLine();
+
+            bool success = system.SuspendUser(loggedInUser, identifier, reason, out string errorMessage);
+
+            if (!success)
+            {
+                Console.WriteLine($"Suspend failed: {errorMessage}");
+                return;
+            }
+
+            Console.WriteLine("User suspended successfully.");
+        }
+
+        // REQ-008 / KAN-12: capture a user id/email, show who was found before acting (KAN-12 review -
+        // Zohar), then capture a reason and call JobSystem.UnsuspendUser.
+        static void HandleUnsuspendUser(JobSystem system, User loggedInUser)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Unsuspend a user --");
+
+            Console.Write("User id or email: ");
+            string identifier = Console.ReadLine();
+
+            User found = system.FindUserForAdmin(loggedInUser, identifier, out string lookupError);
+            if (found == null)
+            {
+                Console.WriteLine($"Unsuspend failed: {lookupError}");
+                return;
+            }
+            Console.WriteLine(found);
+
+            Console.Write("Reason: ");
+            string reason = Console.ReadLine();
+
+            bool success = system.UnsuspendUser(loggedInUser, identifier, reason, out string errorMessage);
+
+            if (!success)
+            {
+                Console.WriteLine($"Unsuspend failed: {errorMessage}");
+                return;
+            }
+
+            Console.WriteLine("User unsuspended successfully.");
         }
 
         // REQ-009 / KAN-13: capture profile details, call JobSystem.UpdateCandidateProfile, display the result.
@@ -375,6 +454,23 @@ namespace JobApp
                 Console.WriteLine("Invalid job id.");
                 return;
             }
+            // KAN-109: only allow a job selected from the displayed search results.
+            bool listedResult = false;
+            for (int i = 0; i < count; i++)
+            {
+                if (results[i].GetId() == jobId)
+                {
+                    listedResult = true;
+                    break;
+                }
+            }
+
+            if (!listedResult)
+            {
+                Console.WriteLine("Job not found in the displayed search results.");
+                return;
+            }
+
             HandleViewJobDetails(system, viewer, jobId);
         }
 
@@ -509,11 +605,17 @@ namespace JobApp
             }
 
             Console.Write("1 - View details, 2 - Edit, 3 - Close, Enter - Return: ");
-            switch (Console.ReadLine())
+            string manageChoice = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(manageChoice)) return;
+
+            switch (manageChoice)
             {
                 case "1": HandleViewJobDetails(system, employer, jobId); break;
                 case "2": HandleEditJob(system, employer, jobId); break;
                 case "3": HandleCloseJob(system, employer, jobId); break;
+                default:
+                    Console.WriteLine("Invalid choice, please try again.");
+                    break;
             }
         }
 
