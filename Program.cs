@@ -421,8 +421,49 @@ namespace JobApp
                 return;
             }
 
-            Console.Write("Also remove the reported job? (y/n): ");
-            bool removeJobToo = (Console.ReadLine() ?? "").Trim().Equals("y", StringComparison.OrdinalIgnoreCase);
+            // KAN-11 review fix (Zohar): show the actual job behind the report - not just the
+            // short label already printed in the reports list above - so the admin can make an
+            // informed decision before answering the remove-job-too question.
+            Report selectedReport = null;
+            for (int i = 0; i < count; i++)
+            {
+                if (newReports[i].GetId() == reportId)
+                {
+                    selectedReport = newReports[i];
+                    break;
+                }
+            }
+
+            if (selectedReport != null)
+            {
+                Job reportedJob = selectedReport.GetJob();
+                Console.WriteLine();
+                Console.WriteLine("Reported job details:");
+                Console.WriteLine(reportedJob != null
+                    ? reportedJob.ToString()
+                    : "Job not found (it may have already been removed).");
+                Console.WriteLine();
+            }
+
+            // KAN-11 review fix (Zohar): only "y" or "n" are valid answers now. Any other input
+            // (empty, a typo, garbage) re-asks instead of silently being treated as "n".
+            bool removeJobToo;
+            while (true)
+            {
+                Console.Write("Also remove the reported job? (y/n): ");
+                string answer = (Console.ReadLine() ?? "").Trim();
+                if (answer.Equals("y", StringComparison.OrdinalIgnoreCase))
+                {
+                    removeJobToo = true;
+                    break;
+                }
+                if (answer.Equals("n", StringComparison.OrdinalIgnoreCase))
+                {
+                    removeJobToo = false;
+                    break;
+                }
+                WriteError("Invalid input, please enter y or n.");
+            }
 
             Console.Write("Reason: ");
             string reason = Console.ReadLine();
