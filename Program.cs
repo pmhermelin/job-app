@@ -189,6 +189,8 @@ namespace JobApp
                     // REQ-007 / KAN-11: only a system admin may remove a job or handle a report (design doc 4.3).
                     Console.WriteLine("16 - Remove a job");
                     Console.WriteLine("17 - Handle a report");
+                    // REQ-014 / KAN-18: only a system admin may view the admin log (design doc 4.3).
+                    Console.WriteLine("18 - View admin log");
                 }
                 Console.WriteLine("4 - Logout");
                 Console.Write("Choice: ");
@@ -244,6 +246,9 @@ namespace JobApp
                         break;
                     case "17" when isAdmin:
                         HandleReportsByAdmin(system, loggedInUser);
+                        break;
+                    case "18" when isAdmin:
+                        HandleViewAdminLog(system, loggedInUser);
                         break;
                     case "4":
                         loggedIn = false;
@@ -418,6 +423,32 @@ namespace JobApp
             Console.WriteLine(removeJobToo
                 ? "Report handled and job removed successfully."
                 : "Report handled successfully.");
+        }
+
+        // REQ-014 / KAN-18: list the full admin action log (design doc section 6.16). Read-only -
+        // there is no menu option to edit or delete a logged entry (design doc section 5.7).
+        static void HandleViewAdminLog(JobSystem system, User loggedInUser)
+        {
+            Console.WriteLine();
+            Console.WriteLine("-- Admin log --");
+
+            AdminAction[] log = system.GetAdminLog(loggedInUser, out int count, out string errorMessage);
+            if (log == null)
+            {
+                Console.WriteLine($"View failed: {errorMessage}");
+                return;
+            }
+
+            if (count == 0)
+            {
+                Console.WriteLine("The admin log is empty.");
+                return;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                Console.WriteLine(log[i]);
+            }
         }
 
         // REQ-009 / KAN-13: capture profile details, call JobSystem.UpdateCandidateProfile, display the result.
