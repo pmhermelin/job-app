@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using JobApp.Models;
 
 namespace JobApp
@@ -24,9 +25,13 @@ namespace JobApp
         }
 
         // Consistent separator + title before each top-level menu screen.
+        // KAN-117 fix: this used to call SafeClear() itself, which ran on EVERY loop
+        // iteration - including the one right after an action just printed a
+        // success/error message, wiping it before it could ever be read. Clearing now
+        // happens only at real screen transitions (see the SafeClear() calls in Main()
+        // and RunLoggedInSession()), not on every redraw of the same menu.
         static void PrintHeader(string title)
         {
-            SafeClear();
             string border = new string('=', title.Length + 8);
             Console.WriteLine(border);
             Console.WriteLine($"==  {title}  ==");
@@ -58,6 +63,7 @@ namespace JobApp
             JobSystem system = new JobSystem();
             bool running = true;
 
+            SafeClear();
             while (running)
             {
                 PrintHeader("Job Listing Management System");
@@ -195,110 +201,79 @@ namespace JobApp
             bool isEmployer = loggedInUser.GetUserType() == "EMPLOYER";
             bool isAdmin = loggedInUser.GetUserType() == "ADMIN";
 
+            // No SafeClear() here: HandleLogin() just printed "Login successful!" and the
+            // account summary right before calling this method, and clearing immediately
+            // would erase that feedback before the user ever sees it.
             bool loggedIn = true;
             while (loggedIn)
             {
-                PrintHeader($"Logged in as {loggedInUser.GetName()} ({loggedInUser.GetUserType()})");
-                Console.WriteLine("1 - View my account info");
+                // KAN-117: the menu is built per logged-in user first (only the actions that are
+                // actually relevant to their role), then printed with simple sequential numbers
+                // (1, 2, 3...) and no gaps - regardless of role. This supersedes KAN-101/102's
+                // earlier design, where the same action always kept the same number across roles
+                // (so an EMPLOYER, for example, used to see 1, 8, 9, 10... with gaps).
+                var menuItems = new List<(string Label, Action Handler)>();
+                menuItems.Add(("View my account info", () => Console.WriteLine(loggedInUser)));
                 if (isCandidate)
                 {
                     // REQ-009 / KAN-13: only job seekers may update a candidate profile (design doc 4.3).
-                    Console.WriteLine("2 - Update my profile");
+                    menuItems.Add(("Update my profile", () => HandleUpdateCandidateProfile(system, loggedInUser)));
                     // REQ-004 / KAN-8: only job seekers may submit applications (design doc 4.3).
-                    Console.WriteLine("3 - Apply to a job");
+                    menuItems.Add(("Apply to a job", () => HandleSubmitApplication(system, loggedInUser)));
                     // REQ-011 / KAN-15: only job seekers may report a job (design doc 4.3).
-                    Console.WriteLine("5 - Report a job");
-                    Console.WriteLine("6 - Search open jobs");
-                    Console.WriteLine("7 - My applications");
+                    menuItems.Add(("Report a job", () => HandleReportJob(system, loggedInUser)));
+                    menuItems.Add(("Search open jobs", () => HandleSearchJobs(system, loggedInUser)));
+                    menuItems.Add(("My applications", () => HandleMyApplications(system, loggedInUser)));
                 }
                 if (isEmployer)
                 {
-                    Console.WriteLine("8 - Publish a job");
-                    Console.WriteLine("9 - Edit a job");
-                    Console.WriteLine("10 - Close a job");
-                    Console.WriteLine("11 - My jobs");
-                    Console.WriteLine("12 - View applicants for a job");
-                    Console.WriteLine("13 - Update application status");
+                    menuItems.Add(("Publish a job", () => HandlePublishJob(system, loggedInUser)));
+                    menuItems.Add(("Edit a job", () => HandleEditJob(system, loggedInUser)));
+                    menuItems.Add(("Close a job", () => HandleCloseJob(system, loggedInUser)));
+                    menuItems.Add(("My jobs", () => HandleEmployerJobs(system, loggedInUser)));
+                    menuItems.Add(("View applicants for a job", () => HandleApplicants(system, loggedInUser)));
+                    menuItems.Add(("Update application status", () => HandleApplicationStatus(system, loggedInUser)));
                 }
                 if (isAdmin)
                 {
                     // REQ-008 / KAN-12: only a system admin may suspend/unsuspend a user (design doc 4.3).
-                    // Numbered 14/15 (not 5) to leave "5" free for REQ-011/KAN-15 (report a job, a
-                    // teammate's still-unmerged branch) so the two branches don't collide on a number.
-                    Console.WriteLine("14 - Suspend a user");
-                    Console.WriteLine("15 - Unsuspend a user");
+                    menuItems.Add(("Suspend a user", () => HandleSuspendUser(system, loggedInUser)));
+                    menuItems.Add(("Unsuspend a user", () => HandleUnsuspendUser(system, loggedInUser)));
                     // REQ-007 / KAN-11: only a system admin may remove a job or handle a report (design doc 4.3).
-                    Console.WriteLine("16 - Remove a job");
-                    Console.WriteLine("17 - Handle a report");
+                    menuItems.Add(("Remove a job", () => HandleRemoveJob(system, loggedInUser)));
+                    menuItems.Add(("Handle a report", () => HandleReportsByAdmin(system, loggedInUser)));
                     // REQ-014 / KAN-18: only a system admin may view the admin log (design doc 4.3).
-                    Console.WriteLine("18 - View admin log");
+                    menuItems.Add(("View admin log", () => HandleViewAdminLog(system, loggedInUser)));
                 }
-                Console.WriteLine("4 - Logout");
+                int logoutNumber = menuItems.Count + 1;
+
+                PrintHeader($"Logged in as {loggedInUser.GetName()} ({loggedInUser.GetUserType()})");
+                for (int i = 0; i < menuItems.Count; i++)
+                {
+                    Console.WriteLine($"{i + 1} - {menuItems[i].Label}");
+                }
+                Console.WriteLine($"{logoutNumber} - Logout");
                 Console.WriteLine();
                 Console.Write("Choice: ");
 
                 string choice = Console.ReadLine();
 
-                switch (choice)
+                if (!int.TryParse(choice, out int choiceNumber))
                 {
-                    case "1":
-                        Console.WriteLine(loggedInUser);
-                        break;
-                    case "2" when isCandidate:
-                        HandleUpdateCandidateProfile(system, loggedInUser);
-                        break;
-                    case "3" when isCandidate:
-                        HandleSubmitApplication(system, loggedInUser);
-                        break;
-                    case "5" when isCandidate:
-                        HandleReportJob(system, loggedInUser);
-                        break;
-                    case "6" when isCandidate:
-                        HandleSearchJobs(system, loggedInUser);
-                        break;
-                    case "7" when isCandidate:
-                        HandleMyApplications(system, loggedInUser);
-                        break;
-                    case "8" when isEmployer:
-                        HandlePublishJob(system, loggedInUser);
-                        break;
-                    case "9" when isEmployer:
-                        HandleEditJob(system, loggedInUser);
-                        break;
-                    case "10" when isEmployer:
-                        HandleCloseJob(system, loggedInUser);
-                        break;
-                    case "11" when isEmployer:
-                        HandleEmployerJobs(system, loggedInUser);
-                        break;
-                    case "12" when isEmployer:
-                        HandleApplicants(system, loggedInUser);
-                        break;
-                    case "13" when isEmployer:
-                        HandleApplicationStatus(system, loggedInUser);
-                        break;
-                    case "14" when isAdmin:
-                        HandleSuspendUser(system, loggedInUser);
-                        break;
-                    case "15" when isAdmin:
-                        HandleUnsuspendUser(system, loggedInUser);
-                        break;
-                    case "16" when isAdmin:
-                        HandleRemoveJob(system, loggedInUser);
-                        break;
-                    case "17" when isAdmin:
-                        HandleReportsByAdmin(system, loggedInUser);
-                        break;
-                    case "18" when isAdmin:
-                        HandleViewAdminLog(system, loggedInUser);
-                        break;
-                    case "4":
-                        loggedIn = false;
-                        HandleLogout(loggedInUser);
-                        break;
-                    default:
-                        WriteError("Invalid choice, please try again.");
-                        break;
+                    WriteError("Invalid choice, please try again.");
+                }
+                else if (choiceNumber == logoutNumber)
+                {
+                    loggedIn = false;
+                    HandleLogout(loggedInUser);
+                }
+                else if (choiceNumber >= 1 && choiceNumber <= menuItems.Count)
+                {
+                    menuItems[choiceNumber - 1].Handler();
+                }
+                else
+                {
+                    WriteError("Invalid choice, please try again.");
                 }
             }
         }
@@ -448,8 +423,49 @@ namespace JobApp
                 return;
             }
 
-            Console.Write("Also remove the reported job? (y/n): ");
-            bool removeJobToo = (Console.ReadLine() ?? "").Trim().Equals("y", StringComparison.OrdinalIgnoreCase);
+            // KAN-11 review fix (Zohar): show the actual job behind the report - not just the
+            // short label already printed in the reports list above - so the admin can make an
+            // informed decision before answering the remove-job-too question.
+            Report selectedReport = null;
+            for (int i = 0; i < count; i++)
+            {
+                if (newReports[i].GetId() == reportId)
+                {
+                    selectedReport = newReports[i];
+                    break;
+                }
+            }
+
+            if (selectedReport != null)
+            {
+                Job reportedJob = selectedReport.GetJob();
+                Console.WriteLine();
+                Console.WriteLine("Reported job details:");
+                Console.WriteLine(reportedJob != null
+                    ? reportedJob.ToString()
+                    : "Job not found (it may have already been removed).");
+                Console.WriteLine();
+            }
+
+            // KAN-11 review fix (Zohar): only "y" or "n" are valid answers now. Any other input
+            // (empty, a typo, garbage) re-asks instead of silently being treated as "n".
+            bool removeJobToo;
+            while (true)
+            {
+                Console.Write("Also remove the reported job? (y/n): ");
+                string answer = (Console.ReadLine() ?? "").Trim();
+                if (answer.Equals("y", StringComparison.OrdinalIgnoreCase))
+                {
+                    removeJobToo = true;
+                    break;
+                }
+                if (answer.Equals("n", StringComparison.OrdinalIgnoreCase))
+                {
+                    removeJobToo = false;
+                    break;
+                }
+                WriteError("Invalid input, please enter y or n.");
+            }
 
             Console.Write("Reason: ");
             string reason = Console.ReadLine();
