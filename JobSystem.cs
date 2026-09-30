@@ -52,6 +52,9 @@ namespace JobApp
         }
 
         // The admin account is created in the constructor; ADMIN cannot be chosen at registration (design doc, section 4.4).
+        // KAN-108: known limitation - passwords (including this one) are stored and compared as plain
+        // text (see User.CheckPassword). Acceptable for this course project's scope, documented here
+        // so it is not mistaken for an oversight.
         private void SeedAdmin()
         {
             User admin = new User(nextUserId, "System Admin", "admin@jobapp.local", "Admin#2026", "ADMIN");
@@ -68,6 +71,11 @@ namespace JobApp
                                   out string errorMessage)
         {
             errorMessage = "";
+
+            // KAN-105: trim surrounding whitespace so a stray space typed at registration
+            // never causes a mismatch later at login.
+            name = name?.Trim();
+            email = email?.Trim();
 
             if (IsBlank(name))
             {
@@ -159,6 +167,12 @@ namespace JobApp
 
             int at = email.IndexOf('@');
             if (at <= 0)
+            {
+                return false;
+            }
+
+            // KAN-107: reject a second '@' (e.g. "a@b@c.com") - only one is valid.
+            if (email.LastIndexOf('@') != at)
             {
                 return false;
             }
@@ -259,6 +273,13 @@ namespace JobApp
             if (candidate == null || candidate.GetUserType() != "CANDIDATE")
             {
                 errorMessage = "Only job seekers can update a candidate profile.";
+                return false;
+            }
+
+            // KAN-106: consistent with SubmitApplication - a suspended candidate cannot update their profile.
+            if (candidate.IsSuspended())
+            {
+                errorMessage = "This account has been suspended. Contact the system administrator.";
                 return false;
             }
 
